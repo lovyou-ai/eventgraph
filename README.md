@@ -19,7 +19,7 @@ Every design decision serves this.
 ### Go
 
 ```bash
-go get github.com/lovyou/eventgraph/go
+go get github.com/lovyou-ai/eventgraph/go
 ```
 
 ```go
@@ -27,8 +27,8 @@ package main
 
 import (
     "context"
-    "github.com/lovyou/eventgraph/go/pkg/event"
-    "github.com/lovyou/eventgraph/go/pkg/store"
+    "github.com/lovyou-ai/eventgraph/go/pkg/event"
+    "github.com/lovyou-ai/eventgraph/go/pkg/store"
 )
 
 func main() {
