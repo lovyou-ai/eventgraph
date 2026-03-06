@@ -281,6 +281,8 @@ These are non-negotiable. Every contribution must maintain them:
 - `docs/authority.md` — Three-tier approval system
 - `docs/protocol.md` — EGIP inter-system protocol
 - `docs/grammar.md` — The 15 social grammar operations
+- `docs/product-layers.md` — The 13 product graphs (Layer 1-13) and their use cases
+- `docs/examples/` — 8 infrastructure-level integration test scenarios
 - `docs/layers/` — Per-layer primitive specifications
 - `docs/coding-standards/go.md` — Go type mappings and implementation patterns
 - `docs/implementation-order.md` — Strict dependency DAG for automated implementers
