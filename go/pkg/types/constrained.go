@@ -58,6 +58,10 @@ func NewWeight(v float64) (Weight, error) {
 	if math.IsNaN(v) || v < -1.0 || v > 1.0 {
 		return Weight{}, &OutOfRangeError{Field: "Weight", Value: v, Min: -1.0, Max: 1.0}
 	}
+	// Normalize negative zero to positive zero for cross-language canonical form consistency.
+	if v == 0 && math.Signbit(v) {
+		v = 0.0
+	}
 	return Weight{value: v}, nil
 }
 

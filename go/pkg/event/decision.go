@@ -130,12 +130,21 @@ func NewTrustMetrics(
 	lastUpdated types.Timestamp,
 	decayRate types.Score,
 ) TrustMetrics {
-	bd := make(map[types.DomainScope]types.Score, len(byDomain))
-	for k, v := range byDomain {
-		bd[k] = v
+	// Normalize empty collections to nil so omitempty omits them from JSON.
+	// This matches the HealthReportContent pattern and ensures cross-language
+	// canonical form consistency (empty = absent, not empty object/array).
+	var bd map[types.DomainScope]types.Score
+	if len(byDomain) > 0 {
+		bd = make(map[types.DomainScope]types.Score, len(byDomain))
+		for k, v := range byDomain {
+			bd[k] = v
+		}
 	}
-	ev := make([]types.EventID, len(evidence))
-	copy(ev, evidence)
+	var ev []types.EventID
+	if len(evidence) > 0 {
+		ev = make([]types.EventID, len(evidence))
+		copy(ev, evidence)
+	}
 	return TrustMetrics{
 		actor:       actor,
 		overall:     overall,

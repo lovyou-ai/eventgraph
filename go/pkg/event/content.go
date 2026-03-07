@@ -426,6 +426,20 @@ type MatchValue struct {
 	EventType types.Option[types.EventType] `json:"EventType"`
 }
 
+// MarshalJSON validates that Number is finite before serializing.
+// Inf/NaN cannot be represented in JSON and would cause canonicalContentJSON to panic.
+func (mv MatchValue) MarshalJSON() ([]byte, error) {
+	if mv.Number.IsSome() {
+		n := mv.Number.Unwrap()
+		if math.IsNaN(n) || math.IsInf(n, 0) {
+			return nil, fmt.Errorf("MatchValue.Number must be finite, got %v", n)
+		}
+	}
+	// Use alias to avoid infinite recursion
+	type matchValueAlias MatchValue
+	return json.Marshal(matchValueAlias(mv))
+}
+
 // PathStep records a step taken in a decision tree traversal.
 type PathStep struct {
 	Condition Condition  `json:"Condition"`
