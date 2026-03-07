@@ -27,6 +27,7 @@ type subscription struct {
 	handler   func(event.Event)
 	buffer    chan event.Event
 	closeOnce sync.Once
+	lastPanic atomic.Value // stores the most recent recovered panic value, if any
 }
 
 // EventBus implements IBus with non-blocking delivery.
@@ -73,12 +74,16 @@ func (b *EventBus) Subscribe(pattern types.SubscriptionPattern, handler func(eve
 		buffer:  ch,
 	}
 
-	// Start delivery goroutine with panic recovery
+	// Start delivery goroutine with panic recovery.
+	// Panics are caught to prevent a misbehaving subscriber from killing delivery.
+	// The panic value is stored on the subscription for diagnostic visibility.
 	go func() {
 		for ev := range ch {
 			func() {
 				defer func() {
-					recover() // prevent subscriber panic from killing delivery goroutine
+					if r := recover(); r != nil {
+						sub.lastPanic.Store(r)
+					}
 				}()
 				handler(ev)
 			}()

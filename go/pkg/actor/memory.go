@@ -111,11 +111,17 @@ func (s *InMemoryActorStore) List(filter ActorFilter) (types.Page[IActor], error
 	startIdx := 0
 	if filter.After.IsSome() {
 		cursor := filter.After.Unwrap()
+		found := false
 		for i, id := range s.ordered {
 			if id.Value() == cursor.Value() {
 				startIdx = i + 1
+				found = true
 				break
 			}
+		}
+		if !found {
+			return types.NewPage[IActor](nil, types.None[types.Cursor](), false),
+				fmt.Errorf("invalid cursor: actor %q not found", cursor.Value())
 		}
 	}
 

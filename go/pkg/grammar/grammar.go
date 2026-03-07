@@ -289,7 +289,10 @@ func (g *Grammar) Delegate(
 	)
 }
 
-// Consent creates a mutual, atomic, dual-signed event. (Operation 13)
+// Consent records a consent proposal signed by partyA. (Operation 13)
+// LIMITATION: This is currently single-signed (partyA only). A full dual-consent
+// protocol requires a two-phase flow (propose → accept) with both parties signing
+// separate causally-linked events. This will be addressed in a future RFC.
 func (g *Grammar) Consent(
 	ctx context.Context,
 	partyA types.ActorID,

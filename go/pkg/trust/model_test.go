@@ -43,7 +43,7 @@ func testTrustEvent(actorID types.ActorID, prev, curr float64) event.Event {
 		types.Now(),
 		actorID,
 		content,
-		nil,
+		[]types.EventID{types.MustEventID("019462a0-0000-7000-8000-000000000001")},
 		types.MustConversationID("conv_test000000000000000000000001"),
 		types.ZeroHash(),
 		types.ZeroHash(),

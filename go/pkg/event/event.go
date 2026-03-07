@@ -27,10 +27,10 @@ type Event struct {
 }
 
 // NewEvent creates a new immutable Event.
-// For normal events — use EventFactory instead of calling this directly in production.
+// NewEvent creates a normal event. Causes must not be empty — every event (except Bootstrap)
+// must declare at least one causal predecessor (CAUSALITY invariant).
+// For production use, prefer EventFactory which enforces all invariants.
 // This constructor exists for tests and low-level use.
-// NewEvent creates a normal event. Causes must not be empty — use NonEmpty to enforce at the call site.
-// EventFactory enforces NonEmpty; this constructor takes a slice for flexibility.
 func NewEvent(
 	version int,
 	id types.EventID,
@@ -44,6 +44,9 @@ func NewEvent(
 	prevHash types.Hash,
 	signature types.Signature,
 ) Event {
+	if len(causes) == 0 {
+		panic("NewEvent: causes must not be empty (use NewBootstrapEvent for genesis)")
+	}
 	c := make([]types.EventID, len(causes))
 	copy(c, causes)
 	return Event{

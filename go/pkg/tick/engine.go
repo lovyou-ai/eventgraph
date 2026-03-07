@@ -125,7 +125,9 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 		}
 
 		waveEvents = newEvents
-		snapshot.PendingEvents = waveEvents
+		pendingCopy := make([]event.Event, len(waveEvents))
+		copy(pendingCopy, waveEvents)
+		snapshot.PendingEvents = pendingCopy
 	}
 
 	quiesced := wavesRun < e.config.MaxWavesPerTick
@@ -169,11 +171,18 @@ func (e *Engine) buildSnapshot(tick types.Tick, pending []event.Event) primitive
 		activeActors = actorPage.Items()
 	}
 
+	// Defensive copy of event slices — primitives must not share backing arrays
+	// (Frozen<Snapshot> invariant: deeply immutable views).
+	pendingCopy := make([]event.Event, len(pending))
+	copy(pendingCopy, pending)
+	recentCopy := make([]event.Event, len(recent))
+	copy(recentCopy, recent)
+
 	return primitive.Snapshot{
 		Tick:          tick,
 		Primitives:    e.registry.AllStates(),
-		PendingEvents: pending,
-		RecentEvents:  recent,
+		PendingEvents: pendingCopy,
+		RecentEvents:  recentCopy,
 		ActiveActors:  activeActors,
 	}
 }
