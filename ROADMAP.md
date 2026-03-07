@@ -275,6 +275,26 @@ Note: Scenario 5 (Supply Chain) is simplified to single-system provenance since 
 | 12 | [Community Lifecycle](docs/tests/primitives/12-community-lifecycle.md) | Community | DONE |
 | 13 | [System Self-Evolution](docs/tests/primitives/13-system-self-evolution.md) | Emergence | DONE |
 
+### Composition Grammar Tests — DONE
+
+13 composition grammar test suites exercising the per-layer grammar operations. Each suite tests the domain-specific operations, named functions, and causal chain integrity for its layer. All tests in `go/pkg/compositions/`.
+
+| # | Grammar | Layer | Status |
+|---|---------|-------|--------|
+| 1 | Work Grammar | Agency | DONE |
+| 2 | Market Grammar | Exchange | DONE |
+| 3 | Social Grammar | Society | DONE |
+| 4 | Justice Grammar | Legal | DONE |
+| 5 | Build Grammar | Technology | DONE |
+| 6 | Knowledge Grammar | Information | DONE |
+| 7 | Alignment Grammar | Ethics | DONE |
+| 8 | Identity Grammar | Identity | DONE |
+| 9 | Bond Grammar | Relationship | DONE |
+| 10 | Belonging Grammar | Community | DONE |
+| 11 | Meaning Grammar | Governance | DONE |
+| 12 | Evolution Grammar | Culture | DONE |
+| 13 | Being Grammar | Existence | DONE |
+
 ---
 
 ## Phase 5: EGIP (Inter-System Protocol)

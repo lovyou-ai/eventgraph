@@ -1,6 +1,6 @@
 # EventGraph
 
-> **Status: Phases 1-4 complete + integration tests.** The Go reference implementation is fully built — event graph core, all 201 primitives across 14 layers, decision trees, trust model, authority chains, tick engine, social grammar, 13 end-to-end integration scenarios, and both in-memory and PostgreSQL stores pass all tests. EGIP inter-system protocol is next. See `ROADMAP.md` for what's next.
+> **Status: Phases 1-4 complete + integration tests + composition grammar tests.** The Go reference implementation is fully built — event graph core, all 201 primitives across 14 layers, decision trees, trust model, authority chains, tick engine, social grammar, 13 end-to-end integration scenarios, 13 composition grammar test suites, and both in-memory and PostgreSQL stores pass all tests. EGIP inter-system protocol is next. See `ROADMAP.md` for what's next.
 
 A hash-chained, append-only, causal event graph. The foundation for building systems where every action is signed, auditable, and causally linked.
 
@@ -118,6 +118,7 @@ The full Go reference implementation:
 | `grammar` | 15 social grammar operations + 3 named functions | ~300 |
 | `actor` | Actor registration, lifecycle, in-memory actor store | ~300 |
 | `integration` | 13 end-to-end scenarios (audit trail, reputation, governance, provenance, ethics, identity, evolution) | ~1500 |
+| `compositions` | 13 composition grammar test suites (work, market, social, justice, build, knowledge, alignment, identity, bond, belonging, meaning, evolution, being) | ~2000 |
 
 All packages pass tests with the Go race detector. Both store implementations pass the shared conformance suite (25 tests covering append, get, query, pagination, causal traversal, hash chain verification, edge indexing, concurrent access).
 
