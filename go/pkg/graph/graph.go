@@ -130,11 +130,11 @@ func (g *Graph) Record(
 	signer event.Signer,
 ) (event.Event, error) {
 	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	if g.closed {
-		g.mu.RUnlock()
 		return event.Event{}, fmt.Errorf("graph is closed")
 	}
-	g.mu.RUnlock()
 
 	ev, err := g.factory.Create(eventType, source, content, causes, conversationID, g.store, signer)
 	if err != nil {
@@ -171,11 +171,11 @@ func (g *Graph) Bootstrap(systemActor types.ActorID, signer event.Signer) (event
 // In the bootstrap phase, this is simplified — no tick engine or full decision tree.
 func (g *Graph) Evaluate(ctx context.Context, a actor.IActor, action string, evalContext map[string]any) (authority.AuthorityResult, error) {
 	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	if g.closed {
-		g.mu.RUnlock()
 		return authority.AuthorityResult{}, fmt.Errorf("graph is closed")
 	}
-	g.mu.RUnlock()
 
 	return g.authChain.Evaluate(ctx, a, action)
 }

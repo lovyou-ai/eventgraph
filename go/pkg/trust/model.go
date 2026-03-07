@@ -95,6 +95,13 @@ func (m *DefaultTrustModel) ScoreInDomain(_ context.Context, a actor.IActor, dom
 	defer m.mu.Unlock()
 
 	state := m.getOrCreate(a.ID())
+
+	// If domain-specific score exists, return metrics with that score
+	if domainScore, ok := state.byDomain[domain]; ok {
+		return m.buildDomainMetrics(a.ID(), state, domainScore), nil
+	}
+
+	// Fall back to global score with lower confidence
 	return m.buildMetrics(a.ID(), state), nil
 }
 
@@ -183,6 +190,22 @@ func (m *DefaultTrustModel) Between(_ context.Context, from actor.IActor, to act
 		), nil
 	}
 	return m.buildMetrics(to.ID(), state), nil
+}
+
+func (m *DefaultTrustModel) buildDomainMetrics(actorID types.ActorID, state *trustState, domainScore types.Score) event.TrustMetrics {
+	evidenceCount := len(state.evidence)
+	confidence := math.Min(1.0, float64(evidenceCount)/50.0)
+
+	return event.NewTrustMetrics(
+		actorID,
+		domainScore,
+		state.byDomain,
+		types.MustScore(confidence),
+		state.trend,
+		state.evidence,
+		state.lastUpdated,
+		m.config.DecayRate,
+	)
 }
 
 func (m *DefaultTrustModel) buildMetrics(actorID types.ActorID, state *trustState) event.TrustMetrics {

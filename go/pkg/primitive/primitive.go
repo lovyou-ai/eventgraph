@@ -62,10 +62,11 @@ type MutationVisitor interface {
 
 // AddEvent requests the tick engine to create and append a new event.
 type AddEvent struct {
-	Type    types.EventType
-	Source  types.ActorID
-	Content event.EventContent
-	Causes  []types.EventID
+	Type           types.EventType
+	Source         types.ActorID
+	Content        event.EventContent
+	Causes         []types.EventID
+	ConversationID types.ConversationID // zero value uses engine default
 }
 
 func (m AddEvent) Accept(v MutationVisitor) { v.VisitAddEvent(m) }

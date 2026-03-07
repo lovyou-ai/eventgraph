@@ -91,6 +91,9 @@ func ExtractBranch(pattern PatternResult) *LeafNode {
 // replaces them with mechanical branches. Returns the evolution result.
 // The tree is mutated in place — the caller should persist after evolution.
 func Evolve(tree *DecisionTree, config EvolutionConfig) EvolutionResult {
+	tree.mu.Lock()
+	defer tree.mu.Unlock()
+
 	if tree.Root == nil {
 		return EvolutionResult{}
 	}
@@ -126,7 +129,14 @@ func evolveNode(node *DecisionNode, config EvolutionConfig) EvolutionResult {
 		if !n.NeedsLLM {
 			return EvolutionResult{}
 		}
-		pattern := DetectPattern(n.Stats, config)
+		// Copy stats under lock to avoid racing with evaluateLeaf
+		n.mu.Lock()
+		statsCopy := n.Stats
+		statsCopy.ResponseHistory = make([]ResponseRecord, len(n.Stats.ResponseHistory))
+		copy(statsCopy.ResponseHistory, n.Stats.ResponseHistory)
+		n.mu.Unlock()
+
+		pattern := DetectPattern(statsCopy, config)
 		if !pattern.Detected {
 			return EvolutionResult{}
 		}

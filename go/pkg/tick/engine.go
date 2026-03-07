@@ -17,6 +17,10 @@ import (
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
+// tickConversationID is the default conversation ID for engine-generated events
+// when primitives don't specify one.
+var tickConversationID = types.MustConversationID("conv_tick_000000000000000000000001")
+
 // Config controls tick engine behaviour.
 type Config struct {
 	MaxWavesPerTick int
@@ -31,15 +35,19 @@ func DefaultConfig() Config {
 
 // Result is the outcome of a single tick.
 type Result struct {
-	Tick      types.Tick
-	Waves     int
-	Mutations int
-	Duration  time.Duration
-	Quiesced  bool
+	Tick           types.Tick
+	Waves          int
+	Mutations      int
+	Duration       time.Duration
+	Quiesced       bool
+	MutationErrors []error // errors from individual mutation applications
 }
 
 // Engine is the ripple-wave tick processor.
+// Not safe for concurrent Tick() calls — callers must serialise externally
+// or rely on the internal mutex.
 type Engine struct {
+	mu          sync.Mutex
 	registry   *primitive.Registry
 	store      store.Store
 	actorStore actor.IActorStore
@@ -71,6 +79,9 @@ func NewEngine(
 
 // Tick runs a single tick. Returns the result.
 func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	start := time.Now()
 
 	// Advance tick counter
@@ -85,7 +96,9 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 	snapshot := e.buildSnapshot(tick, pendingEvents)
 
 	// 2. Ripple-wave loop
-	allMutations := make([]primitive.Mutation, 0)
+	var deferredMutations []primitive.Mutation
+	var allMutationErrors []error
+	totalMutations := 0
 	waveEvents := pendingEvents
 	wavesRun := 0
 	invokedThisTick := make(map[types.PrimitiveID]bool)
@@ -98,36 +111,44 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 			break // quiescence
 		}
 
-		allMutations = append(allMutations, waveMutations...)
+		totalMutations += len(waveMutations)
 
-		// Extract new events from AddEvent mutations
-		waveEvents = e.extractNewEvents(waveMutations)
-		if len(waveEvents) == 0 {
+		// Eagerly persist AddEvent mutations so subsequent waves get real events.
+		// Non-AddEvent mutations are deferred to end of tick.
+		newEvents, deferred, errs := e.applyAndExtractNewEvents(waveMutations)
+		deferredMutations = append(deferredMutations, deferred...)
+		allMutationErrors = append(allMutationErrors, errs...)
+
+		if len(newEvents) == 0 {
 			break // quiescence — mutations but no new events
 		}
 
-		// Update snapshot with new events for next wave
+		waveEvents = newEvents
 		snapshot.PendingEvents = waveEvents
 	}
 
 	quiesced := wavesRun < e.config.MaxWavesPerTick
 
-	// 3. Apply all mutations atomically
-	if err := e.applyMutations(allMutations, tick); err != nil {
-		return Result{}, fmt.Errorf("apply mutations: %w", err)
-	}
+	// 3. Apply deferred (non-AddEvent) mutations
+	deferredErrors := e.applyMutations(deferredMutations, tick)
+	allMutationErrors = append(allMutationErrors, deferredErrors...)
 
 	return Result{
-		Tick:      tick,
-		Waves:     wavesRun,
-		Mutations: len(allMutations),
-		Duration:  time.Since(start),
-		Quiesced:  quiesced,
+		Tick:           tick,
+		Waves:          wavesRun,
+		Mutations:      totalMutations,
+		Duration:       time.Since(start),
+		Quiesced:       quiesced,
+		MutationErrors: allMutationErrors,
 	}, nil
 }
 
 // CurrentTick returns the current tick counter.
-func (e *Engine) CurrentTick() types.Tick { return e.currentTick }
+func (e *Engine) CurrentTick() types.Tick {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.currentTick
+}
 
 func (e *Engine) buildSnapshot(tick types.Tick, pending []event.Event) primitive.Snapshot {
 	// Get recent events for context
@@ -313,42 +334,52 @@ func matchEvents(p primitive.Primitive, events []event.Event) []event.Event {
 	return matched
 }
 
-func (e *Engine) extractNewEvents(mutations []primitive.Mutation) []event.Event {
-	var events []event.Event
+// applyAndExtractNewEvents eagerly persists AddEvent mutations between waves
+// so that subsequent waves receive real events with valid IDs and hashes.
+// Non-AddEvent mutations are returned for deferred application.
+func (e *Engine) applyAndExtractNewEvents(mutations []primitive.Mutation) (newEvents []event.Event, deferred []primitive.Mutation, errs []error) {
 	for _, m := range mutations {
 		if ae, ok := m.(primitive.AddEvent); ok {
-			// Build a minimal event for routing — full event created during apply
-			id, err := types.NewEventIDFromNew()
+			convID := ae.ConversationID
+			if convID == (types.ConversationID{}) {
+				convID = types.MustConversationID("conv_tick_000000000000000000000001")
+			}
+			ev, err := e.factory.Create(
+				ae.Type, ae.Source, ae.Content, ae.Causes,
+				convID, e.store, e.signer,
+			)
 			if err != nil {
+				errs = append(errs, err)
 				continue
 			}
-			ev := event.NewEvent(
-				1, id, ae.Type, types.Now(), ae.Source,
-				ae.Content, ae.Causes,
-				types.MustConversationID("conv_tick_000000000000000000000001"),
-				types.ZeroHash(), types.ZeroHash(),
-				types.MustSignature(make([]byte, 64)),
-			)
-			events = append(events, ev)
+			stored, err := e.store.Append(ev)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			newEvents = append(newEvents, stored)
+		} else {
+			deferred = append(deferred, m)
 		}
 	}
-	return events
+	return
 }
 
-func (e *Engine) applyMutations(mutations []primitive.Mutation, tick types.Tick) error {
+func (e *Engine) applyMutations(mutations []primitive.Mutation, tick types.Tick) []error {
 	applier := &mutationApplier{
 		engine: e,
 		tick:   tick,
 	}
 
+	var errs []error
 	for _, m := range mutations {
 		m.Accept(applier)
 		if applier.err != nil {
-			// Individual mutation failures don't roll back the whole tick
+			errs = append(errs, applier.err)
 			applier.err = nil
 		}
 	}
-	return nil
+	return errs
 }
 
 type mutationApplier struct {
@@ -358,10 +389,13 @@ type mutationApplier struct {
 }
 
 func (a *mutationApplier) VisitAddEvent(m primitive.AddEvent) {
+	convID := m.ConversationID
+	if convID == (types.ConversationID{}) {
+		convID = types.MustConversationID("conv_tick_000000000000000000000001")
+	}
 	ev, err := a.engine.factory.Create(
 		m.Type, m.Source, m.Content, m.Causes,
-		types.MustConversationID("conv_tick_000000000000000000000001"),
-		a.engine.store, a.engine.signer,
+		convID, a.engine.store, a.engine.signer,
 	)
 	if err != nil {
 		a.err = err
@@ -395,7 +429,7 @@ func (a *mutationApplier) VisitAddEdge(m primitive.AddEdge) {
 
 	ev, err := a.engine.factory.Create(
 		event.EventTypeEdgeCreated, m.From, content, causes,
-		types.MustConversationID("conv_tick_000000000000000000000001"),
+		tickConversationID,
 		a.engine.store, a.engine.signer,
 	)
 	if err != nil {

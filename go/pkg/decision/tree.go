@@ -64,7 +64,7 @@ type TreeStats struct {
 type DecisionTree struct {
 	Root    DecisionNode
 	Version int
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	Stats   TreeStats
 }
 

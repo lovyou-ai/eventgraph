@@ -551,11 +551,13 @@ func (s *Signature) UnmarshalJSON(b []byte) error {
 // --- unmarshal helpers ---
 
 // unmarshalID is a generic helper for ID types with a constructor that takes and returns the same type.
+// Normalizes to lowercase before validation and storage to ensure consistent equality.
 func unmarshalID[T any](b []byte, target *string, constructor func(string) (T, error)) error {
 	var v string
 	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}
+	v = strings.ToLower(v)
 	if _, err := constructor(v); err != nil {
 		return err
 	}

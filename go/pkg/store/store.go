@@ -11,7 +11,7 @@ import (
 type Store interface {
 	// Append persists a pre-built Event from EventFactory.
 	// Validates PrevHash matches chain head, recomputes and verifies Hash.
-	// Returns DuplicateEventError if same ID exists (idempotent).
+	// Idempotent: if the same ID already exists, returns the stored event without error.
 	Append(ev event.Event) (event.Event, error)
 
 	// Get retrieves an event by ID.
