@@ -104,7 +104,8 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 	invokedThisTick := make(map[types.PrimitiveID]bool)
 
 	for wavesRun < e.config.MaxWavesPerTick {
-		waveMutations := e.runWave(tick, wavesRun, waveEvents, snapshot, invokedThisTick)
+		waveMutations, waveErrs := e.runWave(tick, wavesRun, waveEvents, snapshot, invokedThisTick)
+		allMutationErrors = append(allMutationErrors, waveErrs...)
 		wavesRun++
 
 		if len(waveMutations) == 0 {
@@ -177,7 +178,7 @@ func (e *Engine) buildSnapshot(tick types.Tick, pending []event.Event) primitive
 	}
 }
 
-func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapshot primitive.Snapshot, invokedThisTick map[types.PrimitiveID]bool) []primitive.Mutation {
+func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapshot primitive.Snapshot, invokedThisTick map[types.PrimitiveID]bool) ([]primitive.Mutation, []error) {
 	// 1. Determine eligible primitives
 	eligible := e.eligiblePrimitives(tick, snapshot, invokedThisTick)
 
@@ -196,6 +197,7 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 
 	// 3. Process layer by layer (sequential between layers, parallel within)
 	var allMutations []primitive.Mutation
+	var waveErrors []error
 
 	for _, layer := range layers {
 		prims := byLayer[layer]
@@ -257,14 +259,14 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 		// Collect mutations from this layer
 		for _, r := range results {
 			if r.err != nil {
-				// Primitive error — would emit error event in full impl
+				waveErrors = append(waveErrors, fmt.Errorf("primitive %s: %w", r.id.Value(), r.err))
 				continue
 			}
 			allMutations = append(allMutations, r.mutations...)
 		}
 	}
 
-	return allMutations
+	return allMutations, waveErrors
 }
 
 func (e *Engine) eligiblePrimitives(tick types.Tick, snapshot primitive.Snapshot, invokedThisTick map[types.PrimitiveID]bool) []primitive.Primitive {
@@ -388,22 +390,10 @@ type mutationApplier struct {
 	err    error
 }
 
-func (a *mutationApplier) VisitAddEvent(m primitive.AddEvent) {
-	convID := m.ConversationID
-	if convID == (types.ConversationID{}) {
-		convID = types.MustConversationID("conv_tick_000000000000000000000001")
-	}
-	ev, err := a.engine.factory.Create(
-		m.Type, m.Source, m.Content, m.Causes,
-		convID, a.engine.store, a.engine.signer,
-	)
-	if err != nil {
-		a.err = err
-		return
-	}
-	if _, err := a.engine.store.Append(ev); err != nil {
-		a.err = err
-	}
+func (a *mutationApplier) VisitAddEvent(_ primitive.AddEvent) {
+	// AddEvent mutations are handled eagerly by applyAndExtractNewEvents between waves.
+	// If this is reached, it means the split logic has a bug.
+	panic("unreachable: AddEvent should have been handled by applyAndExtractNewEvents")
 }
 
 func (a *mutationApplier) VisitAddEdge(m primitive.AddEdge) {
@@ -416,16 +406,17 @@ func (a *mutationApplier) VisitAddEdge(m primitive.AddEdge) {
 		Scope:     m.Scope,
 	}
 
-	// Need a cause — use head of chain
+	// Need a cause — use head of chain (causality invariant: no event without causes)
 	headOpt, err := a.engine.store.Head()
 	if err != nil {
 		a.err = err
 		return
 	}
-	var causes []types.EventID
-	if headOpt.IsSome() {
-		causes = []types.EventID{headOpt.Unwrap().ID()}
+	if !headOpt.IsSome() {
+		a.err = fmt.Errorf("cannot create edge event: store has no head event (causality invariant)")
+		return
 	}
+	causes := []types.EventID{headOpt.Unwrap().ID()}
 
 	ev, err := a.engine.factory.Create(
 		event.EventTypeEdgeCreated, m.From, content, causes,

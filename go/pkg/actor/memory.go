@@ -80,7 +80,7 @@ func (s *InMemoryActorStore) GetByPublicKey(publicKey types.PublicKey) (IActor, 
 	keyHex := pubKeyHex(publicKey)
 	id, ok := s.byKey[keyHex]
 	if !ok {
-		return nil, &store.ActorNotFoundError{ID: types.MustActorID("actor_unknown")}
+		return nil, fmt.Errorf("actor not found for public key %s", keyHex)
 	}
 	return s.actors[id], nil
 }
@@ -206,7 +206,7 @@ func (s *InMemoryActorStore) ActorCount() int {
 	return len(s.actors)
 }
 
-// AllActorIDs returns all actor IDs in insertion order. For testing.
+// AllActorIDs returns all actor IDs sorted alphabetically by ID value. For testing.
 func (s *InMemoryActorStore) AllActorIDs() []types.ActorID {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

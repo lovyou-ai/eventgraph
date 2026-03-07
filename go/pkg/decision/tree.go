@@ -65,6 +65,7 @@ type DecisionTree struct {
 	Root    DecisionNode
 	Version int
 	mu      sync.RWMutex
+	statsMu sync.Mutex // protects Stats independently from tree structure
 	Stats   TreeStats
 }
 

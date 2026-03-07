@@ -22,10 +22,11 @@ type IBus interface {
 }
 
 type subscription struct {
-	id      SubscriptionID
-	pattern types.SubscriptionPattern
-	handler func(event.Event)
-	buffer  chan event.Event
+	id        SubscriptionID
+	pattern   types.SubscriptionPattern
+	handler   func(event.Event)
+	buffer    chan event.Event
+	closeOnce sync.Once
 }
 
 // EventBus implements IBus with non-blocking delivery.
@@ -101,7 +102,7 @@ func (b *EventBus) Unsubscribe(id SubscriptionID) {
 	b.mu.Unlock()
 
 	if ok {
-		close(sub.buffer)
+		sub.closeOnce.Do(func() { close(sub.buffer) })
 	}
 }
 
@@ -142,7 +143,7 @@ func (b *EventBus) Close() error {
 	b.mu.Unlock()
 
 	for _, sub := range subs {
-		close(sub.buffer)
+		sub.closeOnce.Do(func() { close(sub.buffer) })
 	}
 	return nil
 }

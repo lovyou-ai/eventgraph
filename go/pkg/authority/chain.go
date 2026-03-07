@@ -174,10 +174,11 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 			}
 		}
 
-		// Check scope match if policy has a scope
+		// Check scope match: if policy requires a scope, the edge must have
+		// a matching scope. Un-scoped edges do not satisfy scoped policies.
 		policy := c.findPolicy(action)
-		if policy.Scope.IsSome() && e.Scope().IsSome() {
-			if policy.Scope.Unwrap() != e.Scope().Unwrap() {
+		if policy.Scope.IsSome() {
+			if !e.Scope().IsSome() || policy.Scope.Unwrap() != e.Scope().Unwrap() {
 				continue
 			}
 		}

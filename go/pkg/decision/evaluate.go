@@ -128,18 +128,14 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 	leaf.Stats.HitCount++
 	leaf.mu.Unlock()
 
-	tree.mu.RUnlock()
-	tree.mu.Lock()
+	tree.statsMu.Lock()
 	tree.Stats.TotalHits++
-	tree.mu.Unlock()
-	tree.mu.RLock()
+	tree.statsMu.Unlock()
 
 	if !leaf.NeedsLLM {
-		tree.mu.RUnlock()
-		tree.mu.Lock()
+		tree.statsMu.Lock()
 		tree.Stats.MechanicalHits++
-		tree.mu.Unlock()
-		tree.mu.RLock()
+		tree.statsMu.Unlock()
 
 		outcome := leaf.Outcome.Unwrap()
 		return TreeResult{
@@ -159,11 +155,9 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 		}
 	}
 
-	tree.mu.RUnlock()
-	tree.mu.Lock()
+	tree.statsMu.Lock()
 	tree.Stats.LLMHits++
-	tree.mu.Unlock()
-	tree.mu.RLock()
+	tree.statsMu.Unlock()
 
 	leaf.mu.Lock()
 	leaf.Stats.LLMCallCount++
@@ -176,11 +170,9 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 		return TreeResult{}, err
 	}
 
-	tree.mu.RUnlock()
-	tree.mu.Lock()
+	tree.statsMu.Lock()
 	tree.Stats.TotalTokens += resp.TokensUsed()
-	tree.mu.Unlock()
-	tree.mu.RLock()
+	tree.statsMu.Unlock()
 
 	outcome := parseOutcome(resp.Content())
 
