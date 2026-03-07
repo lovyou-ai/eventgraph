@@ -101,7 +101,11 @@ func cmdGet(g *graph.Graph, idStr string) {
 }
 
 func cmdRecent(g *graph.Graph, limit int) {
-	page, err := g.Query().Recent(limit)
+	q, err := g.Query()
+	if err != nil {
+		fatal("query: %v", err)
+	}
+	page, err := q.Recent(limit)
 	if err != nil {
 		fatal("recent failed: %v", err)
 	}
@@ -114,7 +118,11 @@ func cmdRecent(g *graph.Graph, limit int) {
 }
 
 func cmdCount(g *graph.Graph) {
-	count, err := g.Query().EventCount()
+	q, err := g.Query()
+	if err != nil {
+		fatal("query: %v", err)
+	}
+	count, err := q.EventCount()
 	if err != nil {
 		fatal("count failed: %v", err)
 	}

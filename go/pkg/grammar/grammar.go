@@ -144,7 +144,7 @@ func (g *Grammar) Acknowledge(
 		event.EdgeCreatedContent{
 			From:      source,
 			To:        targetActor,
-			EdgeType:  event.EdgeTypeEndorsement,
+			EdgeType:  event.EdgeTypeAcknowledgement,
 			Weight:    types.MustWeight(0),
 			Direction: event.EdgeDirectionCentripetal,
 			Scope:     types.None[types.DomainScope](),

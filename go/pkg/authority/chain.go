@@ -51,14 +51,14 @@ func (c *DelegationChain) Evaluate(ctx context.Context, a actor.IActor, action s
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	chain, err := c.walkChain(ctx, a.ID(), action, nil, 0)
+	policy := c.findPolicy(action)
+	chain, err := c.walkChain(ctx, a.ID(), policy, nil, 0)
 	if err != nil {
 		return AuthorityResult{}, err
 	}
 
 	if len(chain) == 0 {
 		// No delegation chain — use direct authority
-		policy := c.findPolicy(action)
 		link := event.AuthorityLink{
 			Actor:  a.ID(),
 			Level:  policy.Level,
@@ -78,8 +78,7 @@ func (c *DelegationChain) Evaluate(ctx context.Context, a actor.IActor, action s
 	}
 	weightScore := types.MustScore(clamp(weight, 0.0, 1.0))
 
-	// Level comes from the policy for this action
-	policy := c.findPolicy(action)
+	// Level comes from the resolved policy
 	level := policy.Level
 
 	return AuthorityResult{
@@ -93,7 +92,8 @@ func (c *DelegationChain) Chain(ctx context.Context, a actor.IActor, action stri
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	chain, err := c.walkChain(ctx, a.ID(), action, nil, 0)
+	policy := c.findPolicy(action)
+	chain, err := c.walkChain(ctx, a.ID(), policy, nil, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,8 @@ func (c *DelegationChain) Revoke(_ context.Context, _ actor.IActor, _ actor.IAct
 // walkChain recursively walks Authority edges from the given actor, building
 // the delegation chain. Weight propagates multiplicatively through the chain.
 // depth tracks current path depth (not total actors visited across branches).
-func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, action string, visited map[types.ActorID]bool, depth int) ([]event.AuthorityLink, error) {
+// policy is resolved once by the caller and passed through to avoid redundant lookups.
+func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, policy AuthorityPolicy, visited map[types.ActorID]bool, depth int) ([]event.AuthorityLink, error) {
 	if visited == nil {
 		visited = make(map[types.ActorID]bool)
 	}
@@ -159,7 +160,6 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 
 		// Check scope match: if policy requires a scope, the edge must have
 		// a matching scope. Un-scoped edges do not satisfy scoped policies.
-		policy := c.findPolicy(action)
 		if policy.Scope.IsSome() {
 			if !e.Scope().IsSome() || policy.Scope.Unwrap() != e.Scope().Unwrap() {
 				continue
@@ -177,7 +177,6 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 
 	if bestEdge == nil {
 		// No delegation — just the actor itself
-		policy := c.findPolicy(action)
 		return []event.AuthorityLink{
 			{
 				Actor:  actorID,
@@ -188,7 +187,7 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 	}
 
 	// Walk up the chain from the delegator
-	parentChain, err := c.walkChain(ctx, bestEdge.From(), action, visited, depth+1)
+	parentChain, err := c.walkChain(ctx, bestEdge.From(), policy, visited, depth+1)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +195,7 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 	// Append this actor's link with delegated weight
 	link := event.AuthorityLink{
 		Actor:  actorID,
-		Level:  c.findPolicy(action).Level,
+		Level:  policy.Level,
 		Weight: types.MustScore(clamp(bestWeight, 0.0, 1.0)),
 	}
 

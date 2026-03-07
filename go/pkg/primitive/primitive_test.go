@@ -161,8 +161,8 @@ func TestRegistryUpdateState(t *testing.T) {
 		t.Fatalf("UpdateState: %v", err)
 	}
 	states := r.AllStates()
-	if states[p.ID()].State["counter"] != 42 {
-		t.Errorf("State[counter] = %v, want 42", states[p.ID()].State["counter"])
+	if states[p.ID()].State()["counter"] != 42 {
+		t.Errorf("State[counter] = %v, want 42", states[p.ID()].State()["counter"])
 	}
 }
 

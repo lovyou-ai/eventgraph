@@ -104,7 +104,10 @@ func Evolve(tree *DecisionTree, config EvolutionConfig) EvolutionResult {
 	if evolved.Evolved {
 		tree.Version++
 		evolved.NewVersion = tree.Version
-		if tree.Stats.LLMHits > 0 {
+		tree.statsMu.Lock()
+		llmHits := tree.Stats.LLMHits
+		tree.statsMu.Unlock()
+		if llmHits > 0 {
 			evolved.CostReduction = evolved.Pattern.Frequency
 		}
 	}

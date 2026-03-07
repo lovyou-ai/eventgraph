@@ -13,14 +13,16 @@ const (
 	EdgeTypeDelegation   EdgeType = "Delegation"
 	EdgeTypeCausation    EdgeType = "Causation"
 	EdgeTypeReference    EdgeType = "Reference"
-	EdgeTypeChannel      EdgeType = "Channel"
-	EdgeTypeAnnotation   EdgeType = "Annotation"
+	EdgeTypeChannel          EdgeType = "Channel"
+	EdgeTypeAnnotation       EdgeType = "Annotation"
+	EdgeTypeAcknowledgement  EdgeType = "Acknowledgement"
 )
 
 var validEdgeTypes = map[EdgeType]bool{
 	EdgeTypeTrust: true, EdgeTypeAuthority: true, EdgeTypeSubscription: true,
 	EdgeTypeEndorsement: true, EdgeTypeDelegation: true, EdgeTypeCausation: true,
 	EdgeTypeReference: true, EdgeTypeChannel: true, EdgeTypeAnnotation: true,
+	EdgeTypeAcknowledgement: true,
 }
 
 // IsValid returns true if the edge type is a known type.
@@ -37,6 +39,7 @@ type EdgeTypeVisitor interface {
 	VisitReference()
 	VisitChannel()
 	VisitAnnotation()
+	VisitAcknowledgement()
 }
 
 // Accept dispatches to the appropriate visitor method.
@@ -60,6 +63,8 @@ func (t EdgeType) Accept(v EdgeTypeVisitor) {
 		v.VisitChannel()
 	case EdgeTypeAnnotation:
 		v.VisitAnnotation()
+	case EdgeTypeAcknowledgement:
+		v.VisitAcknowledgement()
 	default:
 		panic(fmt.Sprintf("EdgeType.Accept: unrecognized EdgeType %q", t))
 	}

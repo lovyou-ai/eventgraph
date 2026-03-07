@@ -86,7 +86,7 @@ func (r *Registry) AllStates() map[types.PrimitiveID]PrimitiveState {
 			Lifecycle:  ms.lifecycle,
 			Activation: ms.activation,
 			Cadence:    p.Cadence(),
-			State:      stateCopy,
+			state:      stateCopy,
 			LastTick:   ms.lastTick,
 		}
 	}

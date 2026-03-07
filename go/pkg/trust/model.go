@@ -130,8 +130,19 @@ func (m *DefaultTrustModel) ScoreInDomain(_ context.Context, a actor.IActor, dom
 		return m.buildDomainMetrics(a.ID(), &state, domainScore), nil
 	}
 
-	// Fall back to global score with lower confidence
-	return m.buildMetrics(a.ID(), &state), nil
+	// Fall back to global score with halved confidence (no domain-specific data)
+	evidenceCount := len(state.evidence)
+	globalConfidence := math.Min(1.0, float64(evidenceCount)/50.0)
+	return event.NewTrustMetrics(
+		a.ID(),
+		state.score,
+		state.byDomain,
+		types.MustScore(globalConfidence*0.5),
+		state.trend,
+		state.evidence,
+		state.lastUpdated,
+		m.config.DecayRate,
+	), nil
 }
 
 func (m *DefaultTrustModel) Update(_ context.Context, a actor.IActor, evidence event.Event) (event.TrustMetrics, error) {

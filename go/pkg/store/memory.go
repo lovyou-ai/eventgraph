@@ -13,21 +13,23 @@ import (
 // Safe for concurrent access. Chain head is locked during Append.
 type InMemoryStore struct {
 	mu     sync.RWMutex
-	events []event.Event                      // ordered by insertion
-	byID   map[types.EventID]int              // eventID → index in events
-	byType map[string][]int                   // eventType → indices
-	bySrc  map[types.ActorID][]int            // source → indices
-	byConv map[types.ConversationID][]int     // conversationID → indices
-	edges  []event.Edge                       // all edges
+	events  []event.Event                     // ordered by insertion
+	byID    map[types.EventID]int             // eventID → index in events
+	byType  map[string][]int                  // eventType → indices
+	bySrc   map[types.ActorID][]int           // source → indices
+	byConv  map[types.ConversationID][]int    // conversationID → indices
+	byCause map[types.EventID][]int           // causeID → indices of events citing it
+	edges   []event.Edge                      // all edges
 }
 
 // NewInMemoryStore creates a new empty InMemoryStore.
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
-		byID:   make(map[types.EventID]int),
-		byType: make(map[string][]int),
-		bySrc:  make(map[types.ActorID][]int),
-		byConv: make(map[types.ConversationID][]int),
+		byID:    make(map[types.EventID]int),
+		byType:  make(map[string][]int),
+		bySrc:   make(map[types.ActorID][]int),
+		byConv:  make(map[types.ConversationID][]int),
+		byCause: make(map[types.EventID][]int),
 	}
 }
 
@@ -101,6 +103,9 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 	s.byType[ev.Type().Value()] = append(s.byType[ev.Type().Value()], idx)
 	s.bySrc[ev.Source()] = append(s.bySrc[ev.Source()], idx)
 	s.byConv[ev.ConversationID()] = append(s.byConv[ev.ConversationID()], idx)
+	for _, causeID := range ev.Causes() {
+		s.byCause[causeID] = append(s.byCause[causeID], idx)
+	}
 
 	if hasEdge {
 		s.edges = append(s.edges, edge)
@@ -237,18 +242,14 @@ func (s *InMemoryStore) collectDescendants(id types.EventID, maxDepth, depth int
 	if depth >= maxDepth {
 		return
 	}
-	for _, ev := range s.events {
+	for _, childIdx := range s.byCause[id] {
+		ev := s.events[childIdx]
 		if visited[ev.ID()] {
 			continue
 		}
-		for _, causeID := range ev.Causes() {
-			if causeID == id {
-				visited[ev.ID()] = true
-				*result = append(*result, ev)
-				s.collectDescendants(ev.ID(), maxDepth, depth+1, visited, result)
-				break
-			}
-		}
+		visited[ev.ID()] = true
+		*result = append(*result, ev)
+		s.collectDescendants(ev.ID(), maxDepth, depth+1, visited, result)
 	}
 }
 
@@ -377,7 +378,7 @@ func (s *InMemoryStore) paginateReverse(indices []int, limit int, after types.Op
 		items = append(items, s.events[indices[i]])
 	}
 
-	hasMore := startPos-limit >= 0
+	hasMore := len(items) > 0 && startPos-len(items) >= 0
 	var cursor types.Option[types.Cursor]
 	if hasMore && len(items) > 0 {
 		c := types.MustCursor(items[len(items)-1].ID().Value())

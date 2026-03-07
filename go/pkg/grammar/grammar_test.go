@@ -210,8 +210,8 @@ func TestAcknowledge(t *testing.T) {
 		t.Errorf("Type = %v, want edge.created", ev.Type().Value())
 	}
 	content := ev.Content().(event.EdgeCreatedContent)
-	if content.EdgeType != event.EdgeTypeEndorsement {
-		t.Errorf("EdgeType = %v, want Endorsement", content.EdgeType)
+	if content.EdgeType != event.EdgeTypeAcknowledgement {
+		t.Errorf("EdgeType = %v, want Acknowledgement", content.EdgeType)
 	}
 	if content.Weight.Value() != 0 {
 		t.Errorf("Weight = %v, want 0 (content-free)", content.Weight.Value())

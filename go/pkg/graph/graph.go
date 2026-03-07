@@ -168,14 +168,23 @@ func (g *Graph) Record(
 }
 
 // Bootstrap initializes the graph with a genesis event.
+// Uses exclusive lock to prevent concurrent double-bootstrap.
 func (g *Graph) Bootstrap(systemActor types.ActorID, signer event.Signer) (event.Event, error) {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.closed {
 		return event.Event{}, fmt.Errorf("graph is closed")
 	}
 	if !g.started {
 		return event.Event{}, fmt.Errorf("graph is not started (call Start first)")
+	}
+
+	count, err := g.store.Count()
+	if err != nil {
+		return event.Event{}, err
+	}
+	if count > 0 {
+		return event.Event{}, fmt.Errorf("graph already bootstrapped")
 	}
 
 	bf := event.NewBootstrapFactory(g.registry)
@@ -210,19 +219,21 @@ func (g *Graph) Evaluate(ctx context.Context, a actor.IActor, action string) (au
 }
 
 // Query returns a query builder for the graph.
-// Returns nil if the graph is closed or not started.
-func (g *Graph) Query() *Query {
+func (g *Graph) Query() (*Query, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if g.closed || !g.started {
-		return nil
+	if g.closed {
+		return nil, fmt.Errorf("graph is closed")
+	}
+	if !g.started {
+		return nil, fmt.Errorf("graph is not started (call Start first)")
 	}
 	return &Query{
 		store:      g.store,
 		actorStore: g.actorStore,
 		trustModel: g.trustModel,
-	}
+	}, nil
 }
 
 // Store returns the underlying event store.

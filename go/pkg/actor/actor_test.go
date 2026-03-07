@@ -220,12 +220,38 @@ func TestSuspendAndReactivate(t *testing.T) {
 
 	s.Suspend(a.ID(), reason)
 
-	// Reactivate — Suspended → Active is valid
-	// But we don't have a Reactivate method, so we'd need the actor store to support it
-	// For now, just verify the actor is suspended
 	got, _ := s.Get(a.ID())
 	if got.Status() != types.ActorStatusSuspended {
-		t.Errorf("Status = %v, want Suspended", got.Status())
+		t.Errorf("Status after Suspend = %v, want Suspended", got.Status())
+	}
+
+	// Reactivate — Suspended → Active
+	reactivated, err := s.Reactivate(a.ID(), reason)
+	if err != nil {
+		t.Fatalf("Reactivate: %v", err)
+	}
+	if reactivated.Status() != types.ActorStatusActive {
+		t.Errorf("Status after Reactivate = %v, want Active", reactivated.Status())
+	}
+}
+
+func TestReactivateNotFound(t *testing.T) {
+	s := actor.NewInMemoryActorStore()
+	reason := types.MustEventID("019462a0-0000-7000-8000-000000000001")
+	_, err := s.Reactivate(types.MustActorID("actor_nonexistent0000000000000001"), reason)
+	if err == nil {
+		t.Error("expected error for nonexistent actor")
+	}
+}
+
+func TestReactivateFromActiveIsError(t *testing.T) {
+	s := actor.NewInMemoryActorStore()
+	pk := testPublicKey(1)
+	a, _ := s.Register(pk, "Alice", event.ActorTypeHuman)
+	reason := types.MustEventID("019462a0-0000-7000-8000-000000000001")
+	_, err := s.Reactivate(a.ID(), reason)
+	if err == nil {
+		t.Error("expected error when reactivating already-active actor")
 	}
 }
 

@@ -177,7 +177,7 @@ func TestQuery(t *testing.T) {
 
 	g.Bootstrap(actorID, testSigner{})
 
-	q := g.Query()
+	q, _ := g.Query()
 
 	// EventCount
 	count, err := q.EventCount()
@@ -204,7 +204,7 @@ func TestQueryByType(t *testing.T) {
 
 	g.Bootstrap(actorID, testSigner{})
 
-	q := g.Query()
+	q, _ := g.Query()
 	page, err := q.ByType(event.EventTypeSystemBootstrapped, 10)
 	if err != nil {
 		t.Fatalf("ByType: %v", err)
@@ -220,7 +220,7 @@ func TestQueryBySource(t *testing.T) {
 
 	g.Bootstrap(actorID, testSigner{})
 
-	q := g.Query()
+	q, _ := g.Query()
 	page, err := q.BySource(actorID, 10)
 	if err != nil {
 		t.Fatalf("BySource: %v", err)
@@ -238,7 +238,7 @@ func TestQueryTrust(t *testing.T) {
 	pk := testPublicKey(1)
 	a, _ := as.Register(pk, "Alice", event.ActorTypeHuman)
 
-	q := g.Query()
+	q, _ := g.Query()
 	metrics, err := q.TrustScore(context.Background(), a)
 	if err != nil {
 		t.Fatalf("TrustScore: %v", err)
@@ -384,7 +384,7 @@ func TestWithTrustModel(t *testing.T) {
 	pk := testPublicKey(1)
 	a, _ := as.Register(pk, "Alice", event.ActorTypeHuman)
 
-	q := g.Query()
+	q, _ := g.Query()
 	_, err := q.TrustScore(context.Background(), a)
 	if err != nil {
 		t.Fatalf("TrustScore: %v", err)
@@ -460,7 +460,7 @@ func TestQueryByConversation(t *testing.T) {
 		t.Fatalf("Record: %v", err)
 	}
 
-	q := g.Query()
+	q, _ := g.Query()
 	page, err := q.ByConversation(convID, 10)
 	if err != nil {
 		t.Fatalf("ByConversation: %v", err)
@@ -500,7 +500,7 @@ func TestQueryAncestors(t *testing.T) {
 		t.Fatalf("Record: %v", err)
 	}
 
-	q := g.Query()
+	q, _ := g.Query()
 	ancestors, err := q.Ancestors(child.ID(), 10)
 	if err != nil {
 		t.Fatalf("Ancestors: %v", err)
@@ -549,7 +549,7 @@ func TestQueryDescendants(t *testing.T) {
 		t.Fatalf("Record: %v", err)
 	}
 
-	q := g.Query()
+	q, _ := g.Query()
 	descendants, err := q.Descendants(bootstrap.ID(), 10)
 	if err != nil {
 		t.Fatalf("Descendants: %v", err)
@@ -579,7 +579,7 @@ func TestQueryTrustBetween(t *testing.T) {
 	alice, _ := as.Register(pk1, "Alice", event.ActorTypeHuman)
 	bob, _ := as.Register(pk2, "Bob", event.ActorTypeHuman)
 
-	q := g.Query()
+	q, _ := g.Query()
 	metrics, err := q.TrustBetween(context.Background(), alice, bob)
 	if err != nil {
 		t.Fatalf("TrustBetween: %v", err)
@@ -597,7 +597,7 @@ func TestQueryActor(t *testing.T) {
 	pk := testPublicKey(3)
 	registered, _ := as.Register(pk, "Charlie", event.ActorTypeHuman)
 
-	q := g.Query()
+	q, _ := g.Query()
 	found, err := q.Actor(registered.ID())
 	if err != nil {
 		t.Fatalf("Actor: %v", err)

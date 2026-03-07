@@ -9,6 +9,9 @@ import (
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
+// maxResponseHistory caps the ResponseHistory slice on each leaf to prevent unbounded growth.
+const maxResponseHistory = 200
+
 // TreeResult is the output of tree evaluation — a simpler structure than Decision.
 // The caller constructs a full Decision from this plus authority chain, receipt, etc.
 type TreeResult struct {
@@ -184,6 +187,9 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 		Output:     outcome,
 		Confidence: resp.Confidence(),
 	})
+	if len(leaf.Stats.ResponseHistory) > maxResponseHistory {
+		leaf.Stats.ResponseHistory = leaf.Stats.ResponseHistory[len(leaf.Stats.ResponseHistory)-maxResponseHistory:]
+	}
 	leaf.mu.Unlock()
 
 	return TreeResult{

@@ -235,7 +235,8 @@ func (c *edgeTypeCollector) VisitDelegation()   { c.visited = "Delegation" }
 func (c *edgeTypeCollector) VisitCausation()    { c.visited = "Causation" }
 func (c *edgeTypeCollector) VisitReference()    { c.visited = "Reference" }
 func (c *edgeTypeCollector) VisitChannel()      { c.visited = "Channel" }
-func (c *edgeTypeCollector) VisitAnnotation()   { c.visited = "Annotation" }
+func (c *edgeTypeCollector) VisitAnnotation()       { c.visited = "Annotation" }
+func (c *edgeTypeCollector) VisitAcknowledgement()  { c.visited = "Acknowledgement" }
 
 func TestEdgeTypeVisitor(t *testing.T) {
 	tests := []struct {
@@ -251,6 +252,7 @@ func TestEdgeTypeVisitor(t *testing.T) {
 		{EdgeTypeReference, "Reference"},
 		{EdgeTypeChannel, "Channel"},
 		{EdgeTypeAnnotation, "Annotation"},
+		{EdgeTypeAcknowledgement, "Acknowledgement"},
 	}
 	for _, tt := range tests {
 		c := &edgeTypeCollector{}

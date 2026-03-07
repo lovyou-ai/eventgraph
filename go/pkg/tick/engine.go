@@ -340,6 +340,9 @@ func (e *Engine) eligiblePrimitives(tick types.Tick, snapshot primitive.Snapshot
 	return eligible
 }
 
+// layerStable returns true if all registered Layer N-1 primitives are Active and
+// have been invoked at least once. Vacuously true when no Layer N-1 primitives
+// are registered — sparse layer configurations are permitted.
 func layerStable(layer types.Layer, snapshot primitive.Snapshot) bool {
 	if layer.Value() == 0 {
 		return true // Layer 0 always eligible

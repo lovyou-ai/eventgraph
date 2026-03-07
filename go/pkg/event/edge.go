@@ -58,6 +58,9 @@ func (e Edge) Type() EdgeType                          { return e.edgeType }
 func (e Edge) Weight() types.Weight                    { return e.weight }
 func (e Edge) Direction() EdgeDirection                 { return e.direction }
 func (e Edge) Scope() types.Option[types.DomainScope]  { return e.scope }
+// Metadata returns the edge's typed metadata. May be nil for edges
+// reconstructed from EdgeCreatedContent events (which don't carry metadata).
+// Callers must nil-check before calling methods on the result.
 func (e Edge) Metadata() EdgeMetadata                  { return e.metadata }
 func (e Edge) CreatedAt() types.Timestamp                    { return e.createdAt }
 func (e Edge) ExpiresAt() types.Option[types.Timestamp]      { return e.expiresAt }

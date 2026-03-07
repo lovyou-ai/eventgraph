@@ -22,14 +22,28 @@ type Primitive interface {
 }
 
 // PrimitiveState is the read-only view of a primitive's state used in snapshots.
+// The state map is unexported to enforce the Frozen<Snapshot> invariant —
+// callers receive a defensive copy via the State() method.
 type PrimitiveState struct {
 	ID         types.PrimitiveID
 	Layer      types.Layer
 	Lifecycle  types.LifecycleState
 	Activation types.Activation
 	Cadence    types.Cadence
-	State      map[string]any
+	state      map[string]any
 	LastTick   types.Tick
+}
+
+// State returns a defensive copy of the primitive's key-value state.
+func (ps PrimitiveState) State() map[string]any {
+	if ps.state == nil {
+		return nil
+	}
+	cp := make(map[string]any, len(ps.state))
+	for k, v := range ps.state {
+		cp[k] = v
+	}
+	return cp
 }
 
 // Snapshot is the frozen, read-only view passed to primitives during processing.

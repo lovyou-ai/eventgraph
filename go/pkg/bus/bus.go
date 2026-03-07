@@ -102,6 +102,17 @@ func (b *EventBus) Subscribe(pattern types.SubscriptionPattern, handler func(eve
 	return id
 }
 
+// LastPanic returns the most recent panic value for a subscription, or nil.
+func (b *EventBus) LastPanic(id SubscriptionID) any {
+	b.mu.RLock()
+	sub, ok := b.subs[id]
+	b.mu.RUnlock()
+	if !ok {
+		return nil
+	}
+	return sub.lastPanic.Load()
+}
+
 // Unsubscribe removes a subscription.
 func (b *EventBus) Unsubscribe(id SubscriptionID) {
 	b.mu.Lock()
