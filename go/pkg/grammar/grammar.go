@@ -334,6 +334,12 @@ func (g *Grammar) Sever(
 	if ec.From != source && ec.To != source {
 		return event.Event{}, fmt.Errorf("sever: actor %s is not a party to edge %s (from=%s, to=%s)", source.Value(), previousEdge.Value(), ec.From.Value(), ec.To.Value())
 	}
+	// Include both the edge event and the trigger cause in the causal set.
+	// The edge event is a direct causal predecessor (this event supersedes it).
+	causes := []types.EventID{edgeEventID}
+	if cause != edgeEventID {
+		causes = append(causes, cause)
+	}
 	return g.graph.Record(
 		event.EventTypeEdgeSuperseded, source,
 		event.EdgeSupersededContent{
@@ -341,7 +347,7 @@ func (g *Grammar) Sever(
 			NewEdge:      types.None[types.EdgeID](),
 			Reason:       cause,
 		},
-		[]types.EventID{cause}, conversationID, signer,
+		causes, conversationID, signer,
 	)
 }
 

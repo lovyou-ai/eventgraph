@@ -340,8 +340,11 @@ func (c *HealthReportContent) UnmarshalJSON(data []byte) error {
 
 // NewHealthReportContent creates a HealthReportContent with a defensive copy of the health map.
 func NewHealthReportContent(overall types.Score, chainIntegrity bool, primitiveHealth map[types.PrimitiveID]types.Score, activeActors int, eventRate float64) HealthReportContent {
+	// Normalize: empty or nil map → nil, so that canonical form is consistent
+	// (omitempty omits nil maps; an empty non-nil map would emit "PrimitiveHealth":{}
+	// producing a different hash for semantically equivalent content).
 	var ph map[types.PrimitiveID]types.Score
-	if primitiveHealth != nil {
+	if len(primitiveHealth) > 0 {
 		ph = make(map[types.PrimitiveID]types.Score, len(primitiveHealth))
 		for k, v := range primitiveHealth {
 			ph[k] = v

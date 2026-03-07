@@ -295,10 +295,12 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 					err:       processErr,
 				}
 
-				// Transition: Processing → Active (or Emitting → Active if mutations exist).
+				// Transition: Processing → Active (or Emitting → Active if mutations exist and no error).
+				// Only transition through Emitting when Process succeeded with mutations,
+				// since Emitting implies mutations will be applied.
 				// Preserve the original processErr if lifecycle restoration also fails.
 				var lcErr error
-				if len(mutations) > 0 {
+				if len(mutations) > 0 && processErr == nil {
 					if err := e.registry.SetLifecycle(pid, types.LifecycleEmitting); err != nil {
 						lcErr = fmt.Errorf("lifecycle Processing→Emitting: %w", err)
 					} else if err := e.registry.SetLifecycle(pid, types.LifecycleActive); err != nil {

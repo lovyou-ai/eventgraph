@@ -123,9 +123,10 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 
 	now := types.Now()
 
-	// Filter for valid (non-expired) edges with matching scope
+	// Filter for valid (non-expired) edges with matching scope.
+	// bestEdge starts nil; bestWeight starts -1 so that even zero-weight edges are selected.
 	var bestEdge *event.Edge
-	var bestWeight float64
+	bestWeight := -1.0
 
 	for i := range edges {
 		e := edges[i]

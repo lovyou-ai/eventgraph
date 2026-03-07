@@ -279,6 +279,13 @@ func (m *DefaultTrustModel) Decay(_ context.Context, a actor.IActor, elapsed tim
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Guard against negative durations (clock skew, repeated ticks) which would
+	// invert the decay and silently inflate trust scores.
+	if elapsed <= 0 {
+		state := m.getOrDefault(a.ID())
+		return m.buildMetrics(a.ID(), &state), nil
+	}
+
 	days := elapsed.Hours() / 24
 	decayAmount := m.config.DecayRate.Value() * days
 	trendDecay := m.config.TrendDecayRate * days

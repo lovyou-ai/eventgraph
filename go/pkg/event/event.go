@@ -241,7 +241,10 @@ func writeCanonicalValue(sb *strings.Builder, v any) {
 		s := formatCanonicalNumber(val)
 		sb.WriteString(s)
 	default:
-		b, _ := json.Marshal(val)
+		b, err := json.Marshal(val)
+		if err != nil {
+			panic(fmt.Sprintf("canonical form: failed to marshal value %v (%T): %v", val, val, err))
+		}
 		sb.Write(b)
 	}
 }

@@ -31,9 +31,10 @@ type EvaluateInput struct {
 
 // Evaluate walks the decision tree with the given input and optional intelligence.
 // Returns a TreeResult with the outcome, confidence, and the path taken.
+// The tree read lock is held during traversal but released before any LLM I/O
+// to prevent blocking Evolve and other concurrent Evaluate callers.
 func Evaluate(ctx context.Context, tree *DecisionTree, input EvaluateInput, intelligence types.Option[IIntelligence]) (TreeResult, error) {
 	tree.mu.RLock()
-	defer tree.mu.RUnlock()
 
 	var path []event.PathStep
 	node := tree.Root
@@ -43,15 +44,21 @@ func Evaluate(ctx context.Context, tree *DecisionTree, input EvaluateInput, inte
 		case *InternalNode:
 			next, step, err := evaluateInternal(ctx, n, input, intelligence)
 			if err != nil {
+				tree.mu.RUnlock()
 				return TreeResult{}, err
 			}
 			path = append(path, step)
 			node = next
 
 		case *LeafNode:
+			// Release tree lock before evaluateLeaf, which may perform
+			// unbounded LLM I/O. Leaf-level mutations are protected by
+			// leaf.mu and tree.statsMu independently.
+			tree.mu.RUnlock()
 			return evaluateLeaf(ctx, n, input, path, tree, intelligence)
 
 		default:
+			tree.mu.RUnlock()
 			return TreeResult{}, fmt.Errorf("unknown decision node type: %T", node)
 		}
 	}
