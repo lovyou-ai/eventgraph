@@ -336,9 +336,10 @@ Product layers build on each other. Recommended order:
 ## Reference
 
 - `docs/grammar.md` — The 15 social grammar operations that compose all product layer interactions
+- `docs/compositions/` — Per-layer composition grammars (Work, Market, Justice, etc.)
 - `docs/interfaces.md` — Core type system and interfaces
 - `docs/primitives.md` — All 201 primitives across 14 layers
-- `docs/layers/` — Per-layer primitive specifications
-- `docs/examples/` — Infrastructure-level example scenarios
+- `docs/layers/` — Per-layer primitive derivations
+- `docs/tests/primitives/` — Infrastructure-level example scenarios
 - [What You Could Build](https://mattsearles2.substack.com/p/what-you-could-build) — 34 use cases across scales
 - [The Map Complete](https://mattsearles2.substack.com/p/the-map-complete) — The 13 product graphs

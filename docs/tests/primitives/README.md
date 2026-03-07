@@ -1,8 +1,8 @@
-# Example Scenarios
+# Primitive Integration Tests
 
 Infrastructure-level integration test scenarios. Each exercises the full Layer 0 stack (store, bus, primitives, tick engine, trust, authority, decisions) through a concrete product use case.
 
-These examples use only Layer 0 primitives and the 15 social grammar operations. They work with just the infrastructure — no product layer intelligence required. Each scenario notes which product graph (Layer 1-13) would eventually add domain-specific intelligence on top.
+These tests use only Layer 0 primitives and the 15 social grammar operations. They work with just the infrastructure — no product layer intelligence required. Each scenario notes which product graph (Layer 1-13) would eventually add domain-specific intelligence on top.
 
 ## Scenarios
 
@@ -16,6 +16,11 @@ These examples use only Layer 0 primitives and the 15 social grammar operations.
 | 6 | [Research Integrity](06-research-integrity.md) | Research (L5) | Emit, Extend, Derive, Respond, Endorse, Challenge |
 | 7 | [Creator Provenance](07-creator-provenance.md) | Culture (L12) | Emit, Derive, Annotate, Endorse |
 | 8 | [Family Decision Log](08-family-decision-log.md) | Social (L3) | Emit, Respond, Delegate, Consent |
+| 9 | [Knowledge Verification](09-knowledge-verification.md) | Knowledge (L6) | Emit, Derive, Annotate, Challenge, Traverse |
+| 10 | [AI Ethics Audit](10-ai-ethics-audit.md) | Ethics (L7) | Emit, Annotate, Consent, Traverse |
+| 11 | [Agent Identity Lifecycle](11-agent-identity-lifecycle.md) | Identity (L8) | Emit, Annotate, Derive, Channel |
+| 12 | [Community Lifecycle](12-community-lifecycle.md) | Community (L10) | Emit, Endorse, Subscribe, Acknowledge, Consent |
+| 13 | [System Self-Evolution](13-system-self-evolution.md) | Emergence (L12) | Emit, Derive, Annotate, Consent |
 
 ## How to Read These
 

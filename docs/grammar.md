@@ -98,3 +98,4 @@ Same grammar. Same graph. Different lens.
 ## Reference
 
 Full derivation: [The Missing Social Grammar](https://mattsearles2.substack.com) (Post 35)
+- `docs/compositions/` — Per-layer composition grammars applying this same method to every product graph
