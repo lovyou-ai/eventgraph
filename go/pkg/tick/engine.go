@@ -43,6 +43,10 @@ type Result struct {
 	MutationErrors []error // errors from individual mutation applications
 }
 
+// EventPublisher is called after events are persisted to notify subscribers.
+// The Graph layer wires this to its EventBus.Publish.
+type EventPublisher func(ev event.Event)
+
 // Engine is the ripple-wave tick processor.
 // Not safe for concurrent Tick() calls — callers must serialise externally
 // or rely on the internal mutex.
@@ -54,10 +58,12 @@ type Engine struct {
 	factory    *event.EventFactory
 	config     Config
 	signer     event.Signer
+	publisher  EventPublisher
 	currentTick types.Tick
 }
 
 // NewEngine creates a tick engine.
+// publisher is optional — if non-nil, it is called after each event is persisted.
 func NewEngine(
 	registry *primitive.Registry,
 	s store.Store,
@@ -65,6 +71,7 @@ func NewEngine(
 	factory *event.EventFactory,
 	signer event.Signer,
 	config Config,
+	publisher EventPublisher,
 ) *Engine {
 	return &Engine{
 		registry:    registry,
@@ -73,6 +80,7 @@ func NewEngine(
 		factory:     factory,
 		signer:      signer,
 		config:      config,
+		publisher:   publisher,
 		currentTick: types.MustTick(0),
 	}
 }
@@ -145,6 +153,13 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 		Quiesced:       quiesced,
 		MutationErrors: allMutationErrors,
 	}, nil
+}
+
+// publish notifies the publisher (if set) of a persisted event.
+func (e *Engine) publish(ev event.Event) {
+	if e.publisher != nil {
+		e.publisher(ev)
+	}
 }
 
 // CurrentTick returns the current tick counter.
@@ -274,17 +289,13 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 		}
 		wg.Wait()
 
-		// Mark all invoked primitives (after goroutines complete)
-		for _, w := range work {
-			invokedThisTick[w.prim.ID()] = true
-		}
-
-		// Collect mutations from this layer
+		// Collect mutations from this layer; only mark successful primitives as invoked
 		for _, r := range results {
 			if r.err != nil {
 				waveErrors = append(waveErrors, fmt.Errorf("primitive %s: %w", r.id.Value(), r.err))
 				continue
 			}
+			invokedThisTick[r.id] = true
 			allMutations = append(allMutations, r.mutations...)
 		}
 	}
@@ -382,6 +393,7 @@ func (e *Engine) applyAndExtractNewEvents(mutations []primitive.Mutation) (newEv
 				errs = append(errs, err)
 				continue
 			}
+			e.publish(stored)
 			newEvents = append(newEvents, stored)
 		} else {
 			deferred = append(deferred, m)
@@ -450,9 +462,12 @@ func (a *mutationApplier) VisitAddEdge(m primitive.AddEdge) {
 		a.err = err
 		return
 	}
-	if _, err := a.engine.store.Append(ev); err != nil {
+	stored, err := a.engine.store.Append(ev)
+	if err != nil {
 		a.err = err
+		return
 	}
+	a.engine.publish(stored)
 }
 
 func (a *mutationApplier) VisitUpdateState(m primitive.UpdateState) {

@@ -74,7 +74,27 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 		}
 	}
 
-	// Store the event
+	// Validate edge before mutating any indices
+	var edge event.Edge
+	var hasEdge bool
+	if ev.Type() == event.EventTypeEdgeCreated {
+		ec, ok := ev.Content().(event.EdgeCreatedContent)
+		if !ok {
+			return event.Event{}, fmt.Errorf("edge.created event %s has wrong content type %T", ev.ID().Value(), ev.Content())
+		}
+		edgeID := types.MustEdgeID(ev.ID().Value())
+		var edgeErr error
+		edge, edgeErr = event.NewEdge(
+			edgeID, ec.From, ec.To, ec.EdgeType, ec.Weight, ec.Direction,
+			ec.Scope, nil, ev.Timestamp(), ec.ExpiresAt,
+		)
+		if edgeErr != nil {
+			return event.Event{}, fmt.Errorf("index edge: %w", edgeErr)
+		}
+		hasEdge = true
+	}
+
+	// Store the event and update indices
 	idx := len(s.events)
 	s.events = append(s.events, ev)
 	s.byID[ev.ID()] = idx
@@ -82,25 +102,8 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 	s.bySrc[ev.Source()] = append(s.bySrc[ev.Source()], idx)
 	s.byConv[ev.ConversationID()] = append(s.byConv[ev.ConversationID()], idx)
 
-	// Index edge-creating events
-	if ev.Type() == event.EventTypeEdgeCreated {
-		ec, ok := ev.Content().(event.EdgeCreatedContent)
-		if !ok {
-			return event.Event{}, fmt.Errorf("edge.created event %s has wrong content type %T", ev.ID().Value(), ev.Content())
-		}
-		{
-			edgeID := types.MustEdgeID(ev.ID().Value())
-			// metadata is nil — EdgeCreatedContent does not carry typed metadata.
-			// Callers must nil-check Edge.Metadata() before calling methods on it.
-			edge, edgeErr := event.NewEdge(
-				edgeID, ec.From, ec.To, ec.EdgeType, ec.Weight, ec.Direction,
-				ec.Scope, nil, ev.Timestamp(), ec.ExpiresAt,
-			)
-			if edgeErr != nil {
-				return event.Event{}, fmt.Errorf("index edge: %w", edgeErr)
-			}
-			s.edges = append(s.edges, edge)
-		}
+	if hasEdge {
+		s.edges = append(s.edges, edge)
 	}
 
 	return ev, nil

@@ -138,7 +138,7 @@ func (g *Grammar) Merge(
 	}
 	return g.graph.Record(
 		event.EventTypeGrammarMerge, source,
-		event.GrammarMergeContent{Body: body, Sources: sources},
+		event.NewGrammarMergeContent(body, sources),
 		sources, conversationID, signer,
 	)
 }

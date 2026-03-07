@@ -210,7 +210,14 @@ func (g *Graph) Evaluate(ctx context.Context, a actor.IActor, action string, eva
 }
 
 // Query returns a query builder for the graph.
+// Returns nil if the graph is closed or not started.
 func (g *Graph) Query() *Query {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	if g.closed || !g.started {
+		return nil
+	}
 	return &Query{
 		store:      g.store,
 		actorStore: g.actorStore,

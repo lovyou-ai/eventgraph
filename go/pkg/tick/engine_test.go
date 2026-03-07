@@ -72,7 +72,7 @@ func newEngine(t *testing.T, prims ...*testPrimitive) (*tick.Engine, store.Store
 		t.Fatalf("Append bootstrap: %v", err)
 	}
 
-	e := tick.NewEngine(registry, s, as, factory, signer, tick.DefaultConfig())
+	e := tick.NewEngine(registry, s, as, factory, signer, tick.DefaultConfig(), nil)
 	return e, s, bootstrap
 }
 
@@ -534,7 +534,7 @@ func TestTickWaveLimitPreventsInfiniteLoop(t *testing.T) {
 	bootstrap, _ := bf.Init(actorID, signer)
 	s.Append(bootstrap)
 
-	e := tick.NewEngine(registry, s, as, factory, signer, config)
+	e := tick.NewEngine(registry, s, as, factory, signer, config, nil)
 
 	ev := event.NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000099"),
@@ -792,7 +792,7 @@ func TestTickLayerBlockedByNonActivePrimitive(t *testing.T) {
 	bootstrap, _ := bf.Init(types.MustActorID("actor_system0000000000000000001"), signer)
 	s.Append(bootstrap)
 
-	e := tick.NewEngine(registry, s, as, factory, signer, tick.DefaultConfig())
+	e := tick.NewEngine(registry, s, as, factory, signer, tick.DefaultConfig(), nil)
 
 	ev := event.NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000099"),

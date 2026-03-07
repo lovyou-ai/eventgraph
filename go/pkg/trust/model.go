@@ -30,14 +30,23 @@ type DefaultConfig struct {
 
 // DefaultTrustModel implements ITrustModel with linear decay and equal weighting.
 type DefaultTrustModel struct {
-	config DefaultConfig
-	mu     sync.RWMutex
-	scores map[trustKey]*trustState
+	config   DefaultConfig
+	mu       sync.RWMutex
+	scores   map[trustKey]*trustState
+	directed map[directedTrustKey]*trustState
 }
 
 type trustKey struct {
 	actor  string
 	domain string
+}
+
+// directedTrustKey is a collision-free key for directional trust (from→to).
+// Uses separate fields instead of string concatenation to avoid collisions
+// when actor IDs contain the separator.
+type directedTrustKey struct {
+	from string
+	to   string
 }
 
 type trustState struct {
@@ -56,15 +65,17 @@ func NewDefaultTrustModel() *DefaultTrustModel {
 			DecayRate:     types.MustScore(0.01),
 			MaxAdjustment: types.MustWeight(0.1),
 		},
-		scores: make(map[trustKey]*trustState),
+		scores:   make(map[trustKey]*trustState),
+		directed: make(map[directedTrustKey]*trustState),
 	}
 }
 
 // NewDefaultTrustModelWithConfig creates a DefaultTrustModel with custom config.
 func NewDefaultTrustModelWithConfig(config DefaultConfig) *DefaultTrustModel {
 	return &DefaultTrustModel{
-		config: config,
-		scores: make(map[trustKey]*trustState),
+		config:   config,
+		scores:   make(map[trustKey]*trustState),
+		directed: make(map[directedTrustKey]*trustState),
 	}
 }
 
@@ -148,9 +159,11 @@ func (m *DefaultTrustModel) Update(_ context.Context, a actor.IActor, evidence e
 
 	// Update domain-specific score if evidence carries a domain
 	if tc, ok := evidence.Content().(event.TrustUpdatedContent); ok {
-		domainScore := math.Max(0, math.Min(1, state.score.Value()))
+		var domainScore float64
 		if existing, has := state.byDomain[tc.Domain]; has {
 			domainScore = math.Max(0, math.Min(1, existing.Value()+delta))
+		} else {
+			domainScore = math.Max(0, math.Min(1, m.config.InitialTrust.Value()+delta))
 		}
 		state.byDomain[tc.Domain] = types.MustScore(domainScore)
 	}
@@ -178,8 +191,8 @@ func (m *DefaultTrustModel) UpdateBetween(_ context.Context, from actor.IActor, 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := trustKey{actor: from.ID().Value() + "->" + to.ID().Value()}
-	state, ok := m.scores[key]
+	key := directedTrustKey{from: from.ID().Value(), to: to.ID().Value()}
+	state, ok := m.directed[key]
 	if !ok {
 		state = &trustState{
 			score:       m.config.InitialTrust,
@@ -187,7 +200,7 @@ func (m *DefaultTrustModel) UpdateBetween(_ context.Context, from actor.IActor, 
 			lastUpdated: types.Now(),
 			trend:       types.MustWeight(0.0),
 		}
-		m.scores[key] = state
+		m.directed[key] = state
 	}
 
 	delta := m.extractDelta(evidence)
@@ -231,6 +244,11 @@ func (m *DefaultTrustModel) Decay(_ context.Context, a actor.IActor, elapsed tim
 	newScore := math.Max(0, state.score.Value()-decayAmount)
 	state.score = types.MustScore(newScore)
 
+	// Decay domain-specific scores
+	for domain, ds := range state.byDomain {
+		state.byDomain[domain] = types.MustScore(math.Max(0, ds.Value()-decayAmount))
+	}
+
 	// Decay trend toward zero
 	if state.trend.Value() > 0 {
 		state.trend = types.MustWeight(math.Max(0, state.trend.Value()-0.01*days))
@@ -247,9 +265,8 @@ func (m *DefaultTrustModel) Between(_ context.Context, from actor.IActor, to act
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Directional trust: from -> to
-	key := trustKey{actor: from.ID().Value() + "->" + to.ID().Value()}
-	state, ok := m.scores[key]
+	key := directedTrustKey{from: from.ID().Value(), to: to.ID().Value()}
+	state, ok := m.directed[key]
 	if !ok {
 		// No direct trust relationship
 		return event.NewTrustMetrics(

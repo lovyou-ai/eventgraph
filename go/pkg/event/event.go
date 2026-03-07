@@ -112,9 +112,9 @@ func (e Event) Hash() types.Hash                          { return e.hash }
 func (e Event) PrevHash() types.Hash                      { return e.prevHash }
 func (e Event) Signature() types.Signature                { return e.signature }
 
-// IsBootstrap returns true if this is the genesis event (no causes, zero prev hash).
+// IsBootstrap returns true if this is the genesis event.
 func (e Event) IsBootstrap() bool {
-	return len(e.causes) == 0 && e.prevHash == types.ZeroHash()
+	return e.eventType == EventTypeSystemBootstrapped && len(e.causes) == 0 && e.prevHash == types.ZeroHash()
 }
 
 // CanonicalForm produces the canonical string representation of this event.

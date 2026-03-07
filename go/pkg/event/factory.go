@@ -7,6 +7,9 @@ import (
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
+// CurrentEventVersion is the schema version for newly created events.
+const CurrentEventVersion = 1
+
 // Signer provides signing capability for event creation.
 // Defined here to avoid circular imports (store imports event).
 type Signer interface {
@@ -70,7 +73,7 @@ func (f *EventFactory) Create(
 	// Build a temporary event to compute canonical form, then construct
 	// the final immutable event via NewEvent with all fields.
 	tmp := Event{
-		version:        1,
+		version:        CurrentEventVersion,
 		id:             id,
 		eventType:      eventType,
 		timestamp:      timestamp,
@@ -97,7 +100,7 @@ func (f *EventFactory) Create(
 		return Event{}, err
 	}
 
-	return NewEvent(1, id, eventType, timestamp, source, content, causesCopy,
+	return NewEvent(CurrentEventVersion, id, eventType, timestamp, source, content, causesCopy,
 		conversationID, hash, prevHash, sig), nil
 }
 
@@ -136,7 +139,7 @@ func (f *BootstrapFactory) Init(
 	// Build a temporary event to compute canonical form, then construct
 	// the final immutable event via NewBootstrapEvent with all fields.
 	tmp := Event{
-		version:        1,
+		version:        CurrentEventVersion,
 		id:             id,
 		eventType:      EventTypeSystemBootstrapped,
 		timestamp:      now,
@@ -163,6 +166,6 @@ func (f *BootstrapFactory) Init(
 		return Event{}, err
 	}
 
-	return NewBootstrapEvent(1, id, EventTypeSystemBootstrapped, now, systemActor,
+	return NewBootstrapEvent(CurrentEventVersion, id, EventTypeSystemBootstrapped, now, systemActor,
 		content, convID, hash, sig), nil
 }
