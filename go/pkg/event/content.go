@@ -2,7 +2,6 @@ package event
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
@@ -127,7 +126,7 @@ type AuthorityDelegatedContent struct {
 	To        types.ActorID
 	Scope     types.DomainScope
 	Weight    types.Score
-	ExpiresAt types.Option[time.Time]
+	ExpiresAt types.Option[types.Timestamp]
 }
 
 func (c AuthorityDelegatedContent) EventTypeName() string    { return "authority.delegated" }
@@ -194,7 +193,7 @@ type EdgeCreatedContent struct {
 	Weight    types.Weight
 	Direction EdgeDirection
 	Scope     types.Option[types.DomainScope]
-	ExpiresAt types.Option[time.Time]
+	ExpiresAt types.Option[types.Timestamp]
 }
 
 func (c EdgeCreatedContent) EventTypeName() string    { return "edge.created" }
@@ -250,7 +249,7 @@ func (c ChainBrokenContent) Accept(v EventContentVisitor) { v.VisitChainBroken(c
 type BootstrapContent struct {
 	ActorID      types.ActorID
 	ChainGenesis types.Hash
-	Timestamp    time.Time
+	Timestamp    types.Timestamp
 }
 
 func (c BootstrapContent) EventTypeName() string    { return "system.bootstrapped" }
@@ -259,7 +258,7 @@ func (c BootstrapContent) Accept(v EventContentVisitor) { v.VisitBootstrap(c) }
 // ClockTickContent is emitted for each tick.
 type ClockTickContent struct {
 	Tick      types.Tick
-	Timestamp time.Time
+	Timestamp types.Timestamp
 	Elapsed   types.Duration
 }
 
@@ -500,23 +499,22 @@ func (r *EventTypeRegistry) AllTypes() []types.EventType {
 // DefaultRegistry returns a registry with all standard event types registered.
 func DefaultRegistry() *EventTypeRegistry {
 	r := NewEventTypeRegistry()
-	for _, name := range []string{
-		"trust.updated", "trust.score", "trust.decayed",
-		"authority.requested", "authority.resolved", "authority.delegated",
-		"authority.revoked", "authority.timeout",
-		"actor.registered", "actor.suspended", "actor.memorial",
-		"edge.created", "edge.superseded",
-		"violation.detected", "chain.verified", "chain.broken",
-		"system.bootstrapped", "clock.tick", "health.report",
-		"decision.branch.proposed", "decision.branch.inserted", "decision.cost.report",
-		"egip.hello.sent", "egip.hello.received",
-		"egip.message.sent", "egip.message.received",
-		"egip.receipt.sent", "egip.receipt.received",
-		"egip.proof.requested", "egip.proof.received",
-		"egip.treaty.proposed", "egip.treaty.active",
-		"egip.trust.updated",
+	for _, et := range []types.EventType{
+		EventTypeTrustUpdated, EventTypeTrustScore, EventTypeTrustDecayed,
+		EventTypeAuthorityRequested, EventTypeAuthorityResolved, EventTypeAuthorityDelegated,
+		EventTypeAuthorityRevoked, EventTypeAuthorityTimeout,
+		EventTypeActorRegistered, EventTypeActorSuspended, EventTypeActorMemorial,
+		EventTypeEdgeCreated, EventTypeEdgeSuperseded,
+		EventTypeViolationDetected, EventTypeChainVerified, EventTypeChainBroken,
+		EventTypeSystemBootstrapped, EventTypeClockTick, EventTypeHealthReport,
+		EventTypeDecisionBranchProposed, EventTypeDecisionBranchInserted, EventTypeDecisionCostReport,
+		EventTypeEGIPHelloSent, EventTypeEGIPHelloReceived,
+		EventTypeEGIPMessageSent, EventTypeEGIPMessageReceived,
+		EventTypeEGIPReceiptSent, EventTypeEGIPReceiptReceived,
+		EventTypeEGIPProofRequested, EventTypeEGIPProofReceived,
+		EventTypeEGIPTreatyProposed, EventTypeEGIPTreatyActive,
+		EventTypeEGIPTrustUpdated,
 	} {
-		et := types.MustEventType(name)
 		r.Register(et, nil)
 	}
 	return r

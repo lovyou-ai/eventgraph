@@ -92,7 +92,7 @@ func TestRecord(t *testing.T) {
 	}
 
 	ev, err := g.Record(
-		types.MustEventType("trust.updated"),
+		event.EventTypeTrustUpdated,
 		actorID,
 		content,
 		[]types.EventID{bootstrap.ID()},
@@ -118,7 +118,7 @@ func TestRecordAfterClose(t *testing.T) {
 	g.Close()
 
 	_, err := g.Record(
-		types.MustEventType("trust.updated"),
+		event.EventTypeTrustUpdated,
 		actorID,
 		event.TrustUpdatedContent{
 			Actor:    actorID,
@@ -203,7 +203,7 @@ func TestQueryByType(t *testing.T) {
 	g.Bootstrap(actorID, testSigner{})
 
 	q := g.Query()
-	page, err := q.ByType(types.MustEventType("system.bootstrapped"), 10)
+	page, err := q.ByType(event.EventTypeSystemBootstrapped, 10)
 	if err != nil {
 		t.Fatalf("ByType: %v", err)
 	}

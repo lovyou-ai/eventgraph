@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
@@ -17,7 +16,7 @@ type Event struct {
 	version        int
 	id             types.EventID
 	eventType      types.EventType
-	timestamp      time.Time
+	timestamp      types.Timestamp
 	source         types.ActorID
 	content        EventContent
 	causes         []types.EventID
@@ -36,7 +35,7 @@ func NewEvent(
 	version int,
 	id types.EventID,
 	eventType types.EventType,
-	timestamp time.Time,
+	timestamp types.Timestamp,
 	source types.ActorID,
 	content EventContent,
 	causes []types.EventID,
@@ -68,7 +67,7 @@ func NewBootstrapEvent(
 	version int,
 	id types.EventID,
 	eventType types.EventType,
-	timestamp time.Time,
+	timestamp types.Timestamp,
 	source types.ActorID,
 	content BootstrapContent,
 	conversationID types.ConversationID,
@@ -93,7 +92,7 @@ func NewBootstrapEvent(
 func (e Event) Version() int                              { return e.version }
 func (e Event) ID() types.EventID                         { return e.id }
 func (e Event) Type() types.EventType                     { return e.eventType }
-func (e Event) Timestamp() time.Time                      { return e.timestamp }
+func (e Event) Timestamp() types.Timestamp                 { return e.timestamp }
 func (e Event) Source() types.ActorID                     { return e.source }
 func (e Event) Content() EventContent                     { return e.content }
 func (e Event) Causes() []types.EventID {

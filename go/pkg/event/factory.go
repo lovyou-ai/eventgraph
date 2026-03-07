@@ -2,7 +2,6 @@ package event
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
@@ -65,7 +64,7 @@ func (f *EventFactory) Create(
 		version:        1,
 		id:             id,
 		eventType:      eventType,
-		timestamp:      time.Now().UTC(),
+		timestamp:      types.Now(),
 		source:         source,
 		content:        content,
 		causes:         causes,
@@ -104,7 +103,7 @@ func (f *BootstrapFactory) Init(
 	systemActor types.ActorID,
 	signer Signer,
 ) (Event, error) {
-	now := time.Now().UTC()
+	now := types.Now()
 	id, err := types.NewEventIDFromNew()
 	if err != nil {
 		return Event{}, err
@@ -124,7 +123,7 @@ func (f *BootstrapFactory) Init(
 	ev := Event{
 		version:        1,
 		id:             id,
-		eventType:      types.MustEventType("system.bootstrapped"),
+		eventType:      EventTypeSystemBootstrapped,
 		timestamp:      now,
 		source:         systemActor,
 		content:        content,

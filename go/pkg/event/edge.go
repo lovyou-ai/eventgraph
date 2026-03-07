@@ -1,8 +1,6 @@
 package event
 
 import (
-	"time"
-
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
@@ -16,8 +14,8 @@ type Edge struct {
 	direction EdgeDirection
 	scope     types.Option[types.DomainScope]
 	metadata  EdgeMetadata
-	createdAt time.Time
-	expiresAt types.Option[time.Time]
+	createdAt types.Timestamp
+	expiresAt types.Option[types.Timestamp]
 }
 
 // NewEdge creates a new immutable Edge. All fields are validated by their types.
@@ -30,8 +28,8 @@ func NewEdge(
 	direction EdgeDirection,
 	scope types.Option[types.DomainScope],
 	metadata EdgeMetadata,
-	createdAt time.Time,
-	expiresAt types.Option[time.Time],
+	createdAt types.Timestamp,
+	expiresAt types.Option[types.Timestamp],
 ) (Edge, error) {
 	if !edgeType.IsValid() {
 		return Edge{}, &types.InvalidFormatError{Field: "EdgeType", Value: string(edgeType), Expected: "valid EdgeType constant"}
@@ -61,8 +59,8 @@ func (e Edge) Weight() types.Weight                    { return e.weight }
 func (e Edge) Direction() EdgeDirection                 { return e.direction }
 func (e Edge) Scope() types.Option[types.DomainScope]  { return e.scope }
 func (e Edge) Metadata() EdgeMetadata                  { return e.metadata }
-func (e Edge) CreatedAt() time.Time                    { return e.createdAt }
-func (e Edge) ExpiresAt() types.Option[time.Time]      { return e.expiresAt }
+func (e Edge) CreatedAt() types.Timestamp                    { return e.createdAt }
+func (e Edge) ExpiresAt() types.Option[types.Timestamp]      { return e.expiresAt }
 
 // --- Edge Metadata ---
 
@@ -90,7 +88,7 @@ type TrustEdgeMetadata struct {
 	Domain      types.DomainScope
 	Evidence    []types.EventID
 	DecayRate   types.Score
-	LastUpdated time.Time
+	LastUpdated types.Timestamp
 }
 
 func (m TrustEdgeMetadata) EdgeTypeName() EdgeType           { return EdgeTypeTrust }

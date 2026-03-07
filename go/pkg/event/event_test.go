@@ -459,10 +459,10 @@ func TestNewEdge(t *testing.T) {
 	toID := types.MustActorID("actor_00000000000000000000000000000002")
 	weight := types.MustWeight(0.5)
 	scope := types.Some(types.MustDomainScope("code_review"))
-	now := time.Now()
+	now := types.Now()
 
 	edge, err := NewEdge(edgeID, fromID, toID, EdgeTypeTrust, weight, EdgeDirectionCentripetal,
-		scope, TrustEdgeMetadata{Domain: types.MustDomainScope("code_review")}, now, types.None[time.Time]())
+		scope, TrustEdgeMetadata{Domain: types.MustDomainScope("code_review")}, now, types.None[types.Timestamp]())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestNewEdgeInvalidEdgeType(t *testing.T) {
 	toID := types.MustActorID("actor_00000000000000000000000000000002")
 
 	_, err := NewEdge(edgeID, fromID, toID, EdgeType("bogus"), types.MustWeight(0), EdgeDirectionCentripetal,
-		types.None[types.DomainScope](), nil, time.Now(), types.None[time.Time]())
+		types.None[types.DomainScope](), nil, types.Now(), types.None[types.Timestamp]())
 	if err == nil {
 		t.Fatal("expected error for invalid EdgeType")
 	}
@@ -501,7 +501,7 @@ func TestNewEdgeInvalidDirection(t *testing.T) {
 	toID := types.MustActorID("actor_00000000000000000000000000000002")
 
 	_, err := NewEdge(edgeID, fromID, toID, EdgeTypeTrust, types.MustWeight(0), EdgeDirection("bogus"),
-		types.None[types.DomainScope](), nil, time.Now(), types.None[time.Time]())
+		types.None[types.DomainScope](), nil, types.Now(), types.None[types.Timestamp]())
 	if err == nil {
 		t.Fatal("expected error for invalid EdgeDirection")
 	}
@@ -511,13 +511,13 @@ func TestNewEdgeInvalidDirection(t *testing.T) {
 
 func TestNewEvent(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
-	et := types.MustEventType("trust.updated")
+	et := EventTypeTrustUpdated
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
 	hash := types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2")
 	prevHash := types.ZeroHash()
 	sig := types.MustSignature(make([]byte, 64))
-	now := time.Now()
+	now := types.Now()
 	ev := NewEvent(1, id, et, now, source, TrustUpdatedContent{}, []types.EventID{id}, conv, hash, prevHash, sig)
 	if ev.Version() != 1 {
 		t.Errorf("Version = %d, want 1", ev.Version())
@@ -544,12 +544,12 @@ func TestNewEvent(t *testing.T) {
 
 func TestNewBootstrapEvent(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
-	et := types.MustEventType("system.bootstrapped")
+	et := EventTypeSystemBootstrapped
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
 	hash := types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2")
 	sig := types.MustSignature(make([]byte, 64))
-	now := time.Now()
+	now := types.Now()
 
 	ev := NewBootstrapEvent(1, id, et, now, source, BootstrapContent{
 		ActorID: source, ChainGenesis: types.ZeroHash(), Timestamp: now,
@@ -570,10 +570,10 @@ func TestNewBootstrapEvent(t *testing.T) {
 func TestCanonicalFormBootstrap(t *testing.T) {
 	// From canonical-vectors.json: bootstrap_event
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
-	et := types.MustEventType("system.bootstrapped")
+	et := EventTypeSystemBootstrapped
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
-	ts := time.Unix(0, 1700000000000000000).UTC()
+	ts := types.NewTimestamp(time.Unix(0, 1700000000000000000))
 
 	// For canonical form, we need JSON-serializable content matching the vector.
 	// Use rawJSONContent to produce exact JSON.
@@ -603,10 +603,10 @@ func TestCanonicalFormBootstrap(t *testing.T) {
 func TestCanonicalFormTrustUpdated(t *testing.T) {
 	// From canonical-vectors.json: trust_updated_event
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000002")
-	et := types.MustEventType("trust.updated")
+	et := EventTypeTrustUpdated
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
-	ts := time.Unix(0, 1700000001000000000).UTC()
+	ts := types.NewTimestamp(time.Unix(0, 1700000001000000000))
 	prevHash := types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2")
 	content := rawJSONContent{
 		typeName: "trust.updated",
@@ -635,10 +635,10 @@ func TestCanonicalFormTrustUpdated(t *testing.T) {
 func TestCanonicalFormKeyOrdering(t *testing.T) {
 	// From canonical-vectors.json: content_json_key_ordering
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000003")
-	et := types.MustEventType("edge.created")
+	et := EventTypeEdgeCreated
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
-	ts := time.Unix(0, 1700000002000000000).UTC()
+	ts := types.NewTimestamp(time.Unix(0, 1700000002000000000))
 	prevHash := types.MustHash("b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3")
 	// Keys deliberately out of order — canonical form must sort them
 	content := rawJSONContent{
@@ -720,13 +720,13 @@ func TestHashChainLinking(t *testing.T) {
 	// Each event's hash becomes the next event's prev_hash
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
-	et := types.MustEventType("system.bootstrapped")
+	et := EventTypeSystemBootstrapped
 	sig := types.MustSignature(make([]byte, 64))
 
 	// Event 0 (bootstrap)
 	ev0 := NewBootstrapEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000001"),
-		et, time.Unix(0, 1700000000000000000).UTC(), source,
+		et, types.NewTimestamp(time.Unix(0, 1700000000000000000)), source,
 		BootstrapContent{}, conv,
 		types.MustHash("0000000000000000000000000000000000000000000000000000000000000000"), sig)
 	ev0.content = rawJSONContent{typeName: "system.bootstrapped", data: map[string]any{"v": 0}}
@@ -739,8 +739,8 @@ func TestHashChainLinking(t *testing.T) {
 	// Event 1 (prev_hash = hash0)
 	ev1 := NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000002"),
-		types.MustEventType("trust.updated"),
-		time.Unix(0, 1700000001000000000).UTC(), source,
+		EventTypeTrustUpdated,
+		types.NewTimestamp(time.Unix(0, 1700000001000000000)), source,
 		rawJSONContent{typeName: "trust.updated", data: map[string]any{"v": 1}},
 		[]types.EventID{ev0.ID()}, conv,
 		types.MustHash("0000000000000000000000000000000000000000000000000000000000000000"), hash0, sig)
@@ -753,8 +753,8 @@ func TestHashChainLinking(t *testing.T) {
 	// Event 2 (prev_hash = hash1)
 	ev2 := NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000003"),
-		types.MustEventType("trust.updated"),
-		time.Unix(0, 1700000002000000000).UTC(), source,
+		EventTypeTrustUpdated,
+		types.NewTimestamp(time.Unix(0, 1700000002000000000)), source,
 		rawJSONContent{typeName: "trust.updated", data: map[string]any{"v": 2}},
 		[]types.EventID{ev1.ID()}, conv,
 		types.MustHash("0000000000000000000000000000000000000000000000000000000000000000"), hash1, sig)
@@ -785,17 +785,17 @@ func TestDefaultRegistry(t *testing.T) {
 	if len(allTypes) != 33 {
 		t.Errorf("expected 33 registered types, got %d", len(allTypes))
 	}
-	if !r.IsRegistered(types.MustEventType("trust.updated")) {
+	if !r.IsRegistered(EventTypeTrustUpdated) {
 		t.Error("trust.updated should be registered")
 	}
-	if r.IsRegistered(types.MustEventType("bogus.type")) {
+	if r.IsRegistered(types.MustEventType("bogus.type99")) {
 		t.Error("bogus.type should not be registered")
 	}
 }
 
 func TestRegistryValidate(t *testing.T) {
 	r := DefaultRegistry()
-	et := types.MustEventType("trust.updated")
+	et := EventTypeTrustUpdated
 
 	// Matching content type
 	err := r.Validate(et, TrustUpdatedContent{})
@@ -810,7 +810,7 @@ func TestRegistryValidate(t *testing.T) {
 	}
 
 	// Unregistered type
-	err = r.Validate(types.MustEventType("bogus.type"), TrustUpdatedContent{})
+	err = r.Validate(types.MustEventType("bogus.type99"), TrustUpdatedContent{})
 	if err == nil {
 		t.Error("expected error for unregistered type")
 	}
@@ -828,7 +828,7 @@ func TestNewDecision(t *testing.T) {
 	evidence, _ := types.NewNonEmpty([]types.EventID{eventID})
 	receipt := NewReceipt(
 		types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"),
-		time.Now(), actorID, types.MustSignature(make([]byte, 64)),
+		types.Now(), actorID, types.MustSignature(make([]byte, 64)),
 		types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"),
 		eventID,
 	)
@@ -891,7 +891,7 @@ func TestNewTrustMetrics(t *testing.T) {
 		types.MustDomainScope("code_review"): types.MustScore(0.9),
 	}
 	evidence := []types.EventID{types.MustEventID("019462a0-0000-7000-8000-000000000001")}
-	now := time.Now()
+	now := types.Now()
 
 	m := NewTrustMetrics(actorID, overall, byDomain, confidence, trend, evidence, now, decayRate)
 	if m.Actor() != actorID {
@@ -913,7 +913,7 @@ func TestNewTrustMetrics(t *testing.T) {
 func TestNewExpectation(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
 	trigger := types.MustEventID("019462a0-0000-7000-8000-000000000002")
-	now := time.Now()
+	now := types.Now()
 
 	exp, err := NewExpectation(id, trigger, "test", now, SeverityLevelWarning, ExpectationStatusPending)
 	if err != nil {
@@ -926,7 +926,7 @@ func TestNewExpectation(t *testing.T) {
 
 func TestNewExpectationInvalidSeverity(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
-	_, err := NewExpectation(id, id, "test", time.Now(), SeverityLevel("bogus"), ExpectationStatusPending)
+	_, err := NewExpectation(id, id, "test", types.Now(), SeverityLevel("bogus"), ExpectationStatusPending)
 	if err == nil {
 		t.Fatal("expected error for invalid severity")
 	}
@@ -934,7 +934,7 @@ func TestNewExpectationInvalidSeverity(t *testing.T) {
 
 func TestNewExpectationInvalidStatus(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
-	_, err := NewExpectation(id, id, "test", time.Now(), SeverityLevelInfo, ExpectationStatus("bogus"))
+	_, err := NewExpectation(id, id, "test", types.Now(), SeverityLevelInfo, ExpectationStatus("bogus"))
 	if err == nil {
 		t.Fatal("expected error for invalid status")
 	}
@@ -974,7 +974,7 @@ func TestReceipt(t *testing.T) {
 	actorID := types.MustActorID("actor_00000000000000000000000000000001")
 	eventID := types.MustEventID("019462a0-0000-7000-8000-000000000001")
 	sig := types.MustSignature(make([]byte, 64))
-	now := time.Now()
+	now := types.Now()
 
 	r := NewReceipt(hash, now, actorID, sig, hash, eventID)
 	if r.Hash() != hash {
@@ -992,12 +992,12 @@ func TestReceipt(t *testing.T) {
 
 func TestEventAllGetters(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
-	et := types.MustEventType("trust.updated")
+	et := EventTypeTrustUpdated
 	source := types.MustActorID("actor_00000000000000000000000000000001")
 	conv := types.MustConversationID("conv_00000000000000000000000000000001")
 	hash := types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2")
 	sig := types.MustSignature(make([]byte, 64))
-	now := time.Now()
+	now := types.Now()
 	content := TrustUpdatedContent{Actor: source}
 
 	ev := NewEvent(1, id, et, now, source, content, []types.EventID{id}, conv, hash, hash, sig)
@@ -1014,8 +1014,8 @@ func TestEdgeAllGetters(t *testing.T) {
 	toID := types.MustActorID("actor_00000000000000000000000000000002")
 	weight := types.MustWeight(0.5)
 	scope := types.Some(types.MustDomainScope("code_review"))
-	now := time.Now()
-	expires := types.Some(now.Add(time.Hour))
+	now := types.Now()
+	expires := types.Some(types.NewTimestamp(now.Value().Add(time.Hour)))
 
 	edge, _ := NewEdge(edgeID, fromID, toID, EdgeTypeTrust, weight, EdgeDirectionCentripetal,
 		scope, TrustEdgeMetadata{}, now, expires)
@@ -1047,7 +1047,7 @@ func TestDecisionAllGetters(t *testing.T) {
 	evidence, _ := types.NewNonEmpty([]types.EventID{eventID})
 	receipt := NewReceipt(
 		types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"),
-		time.Now(), actorID, types.MustSignature(make([]byte, 64)),
+		types.Now(), actorID, types.MustSignature(make([]byte, 64)),
 		types.MustHash("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"),
 		eventID,
 	)
@@ -1073,7 +1073,7 @@ func TestReceiptAllGetters(t *testing.T) {
 	actorID := types.MustActorID("actor_00000000000000000000000000000001")
 	eventID := types.MustEventID("019462a0-0000-7000-8000-000000000001")
 	sig := types.MustSignature(make([]byte, 64))
-	now := time.Now()
+	now := types.Now()
 
 	r := NewReceipt(hash, now, actorID, sig, hash, eventID)
 	if r.Timestamp() != now {
@@ -1093,7 +1093,7 @@ func TestTrustMetricsAllGetters(t *testing.T) {
 	decayRate := types.MustScore(0.05)
 	eventID := types.MustEventID("019462a0-0000-7000-8000-000000000001")
 	evidence := []types.EventID{eventID}
-	now := time.Now()
+	now := types.Now()
 
 	m := NewTrustMetrics(actorID, overall, nil, confidence, trend, evidence, now, decayRate)
 	if m.Confidence() != confidence {
@@ -1116,7 +1116,7 @@ func TestTrustMetricsAllGetters(t *testing.T) {
 func TestExpectationAllGetters(t *testing.T) {
 	id := types.MustEventID("019462a0-0000-7000-8000-000000000001")
 	trigger := types.MustEventID("019462a0-0000-7000-8000-000000000002")
-	now := time.Now()
+	now := types.Now()
 
 	exp, _ := NewExpectation(id, trigger, "test desc", now, SeverityLevelWarning, ExpectationStatusPending)
 	if exp.ID() != id {

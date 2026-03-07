@@ -21,7 +21,7 @@ func (testSigner) Sign(data []byte) (types.Signature, error) {
 	return types.MustSignature(sig), nil
 }
 
-func makeTestEvent(t *testing.T, s store.Store, eventType string) event.Event {
+func makeTestEvent(t *testing.T, s store.Store, eventType types.EventType) event.Event {
 	t.Helper()
 	signer := testSigner{}
 	actorID := types.MustActorID("actor_test00000000000000000000001")
@@ -49,7 +49,7 @@ func makeTestEvent(t *testing.T, s store.Store, eventType string) event.Event {
 
 	var content event.EventContent
 	switch eventType {
-	case "trust.updated":
+	case event.EventTypeTrustUpdated:
 		content = event.TrustUpdatedContent{
 			Actor:    actorID,
 			Previous: types.MustScore(0.0),
@@ -57,7 +57,7 @@ func makeTestEvent(t *testing.T, s store.Store, eventType string) event.Event {
 			Domain:   types.MustDomainScope("general"),
 			Cause:    causeEventID,
 		}
-	case "edge.created":
+	case event.EventTypeEdgeCreated:
 		content = event.EdgeCreatedContent{
 			From:      actorID,
 			To:        types.MustActorID("actor_test00000000000000000000002"),
@@ -77,7 +77,7 @@ func makeTestEvent(t *testing.T, s store.Store, eventType string) event.Event {
 	}
 
 	ev, err := factory.Create(
-		types.MustEventType(eventType),
+		eventType,
 		actorID,
 		content,
 		[]types.EventID{causeID},
@@ -129,7 +129,7 @@ func TestSubscribeAndPublish(t *testing.T) {
 		done <- struct{}{}
 	})
 
-	ev := makeTestEvent(t, s, "trust.updated")
+	ev := makeTestEvent(t, s, event.EventTypeTrustUpdated)
 	b.Publish(ev)
 
 	select {
@@ -165,7 +165,7 @@ func TestPatternMatching(t *testing.T) {
 	})
 
 	// Publish a trust event
-	ev1 := makeTestEvent(t, s, "trust.updated")
+	ev1 := makeTestEvent(t, s, event.EventTypeTrustUpdated)
 	b.Publish(ev1)
 
 	select {
@@ -175,7 +175,7 @@ func TestPatternMatching(t *testing.T) {
 	}
 
 	// Publish an edge event
-	ev2 := makeTestEvent(t, s, "edge.created")
+	ev2 := makeTestEvent(t, s, event.EventTypeEdgeCreated)
 	b.Publish(ev2)
 
 	select {
@@ -213,7 +213,7 @@ func TestFanOut(t *testing.T) {
 		})
 	}
 
-	ev := makeTestEvent(t, s, "trust.updated")
+	ev := makeTestEvent(t, s, event.EventTypeTrustUpdated)
 	b.Publish(ev)
 
 	done := make(chan struct{})
@@ -243,7 +243,7 @@ func TestUnsubscribe(t *testing.T) {
 
 	b.Unsubscribe(id)
 
-	ev := makeTestEvent(t, s, "trust.updated")
+	ev := makeTestEvent(t, s, event.EventTypeTrustUpdated)
 	b.Publish(ev)
 
 	// Give async delivery a chance (it shouldn't happen)
@@ -279,7 +279,7 @@ func TestSlowSubscriberOverflow(t *testing.T) {
 
 	// Publish more events than the buffer can hold
 	for i := 0; i < 5; i++ {
-		ev := makeTestEvent(t, s, "trust.updated")
+		ev := makeTestEvent(t, s, event.EventTypeTrustUpdated)
 		b.Publish(ev)
 	}
 
@@ -312,7 +312,7 @@ func TestPublishAfterClose(t *testing.T) {
 
 	b.Close()
 
-	ev := makeTestEvent(t, s, "trust.updated")
+	ev := makeTestEvent(t, s, event.EventTypeTrustUpdated)
 	b.Publish(ev) // should be a no-op
 
 	time.Sleep(50 * time.Millisecond)
@@ -345,7 +345,7 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 	// Create events sequentially (store requires serial appends for hash chain)
 	var events []event.Event
 	for i := 0; i < 10; i++ {
-		events = append(events, makeTestEvent(t, s, "trust.updated"))
+		events = append(events, makeTestEvent(t, s, event.EventTypeTrustUpdated))
 	}
 
 	var wg sync.WaitGroup

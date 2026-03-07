@@ -3,7 +3,6 @@ package authority
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/actor"
 	"github.com/lovyou-ai/eventgraph/go/pkg/event"
@@ -113,8 +112,8 @@ func (c *DefaultAuthorityChain) Grant(_ context.Context, from actor.IActor, to a
 		event.EdgeDirectionCentrifugal,
 		types.Some(scope),
 		nil,
-		time.Now().UTC(),
-		types.None[time.Time](),
+		types.Now(),
+		types.None[types.Timestamp](),
 	)
 	if err != nil {
 		return event.Edge{}, err

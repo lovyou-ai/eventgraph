@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"time"
 )
 
 // Score is a float64 constrained to [0.0, 1.0].
@@ -347,6 +348,55 @@ func (fp FieldPath) Value() string { return fp.value }
 
 // String returns the string representation.
 func (fp FieldPath) String() string { return fp.value }
+
+// Timestamp wraps time.Time for domain timestamps. Always UTC, nanosecond precision.
+type Timestamp struct{ value time.Time }
+
+// NewTimestamp creates a Timestamp. Normalizes to UTC.
+func NewTimestamp(t time.Time) Timestamp {
+	return Timestamp{value: t.UTC()}
+}
+
+// Now returns the current time as a Timestamp.
+func Now() Timestamp {
+	return Timestamp{value: time.Now().UTC()}
+}
+
+// ZeroTimestamp returns the zero-value timestamp.
+func ZeroTimestamp() Timestamp {
+	return Timestamp{}
+}
+
+// Value returns the underlying time.Time (UTC).
+func (t Timestamp) Value() time.Time { return t.value }
+
+// UnixNano returns nanoseconds since epoch.
+func (t Timestamp) UnixNano() int64 { return t.value.UnixNano() }
+
+// IsZero returns true if this is a zero timestamp.
+func (t Timestamp) IsZero() bool { return t.value.IsZero() }
+
+// String returns the RFC3339Nano representation.
+func (t Timestamp) String() string { return t.value.Format(time.RFC3339Nano) }
+
+// MarshalJSON marshals the timestamp as an RFC3339Nano string.
+func (t Timestamp) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.value.Format(time.RFC3339Nano))
+}
+
+// UnmarshalJSON unmarshals an RFC3339Nano string.
+func (t *Timestamp) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return err
+	}
+	t.value = parsed.UTC()
+	return nil
+}
 
 func isValidFieldSegment(seg string) bool {
 	if len(seg) == 0 {

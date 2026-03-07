@@ -1,8 +1,6 @@
 package event
 
 import (
-	"time"
-
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
@@ -74,7 +72,7 @@ type TrustWeight struct {
 // Receipt is a cryptographic proof of a decision.
 type Receipt struct {
 	hash      types.Hash
-	timestamp time.Time
+	timestamp types.Timestamp
 	signedBy  types.ActorID
 	signature types.Signature
 	inputHash types.Hash
@@ -84,7 +82,7 @@ type Receipt struct {
 // NewReceipt creates a new immutable Receipt.
 func NewReceipt(
 	hash types.Hash,
-	timestamp time.Time,
+	timestamp types.Timestamp,
 	signedBy types.ActorID,
 	signature types.Signature,
 	inputHash types.Hash,
@@ -101,7 +99,7 @@ func NewReceipt(
 }
 
 func (r Receipt) Hash() types.Hash         { return r.hash }
-func (r Receipt) Timestamp() time.Time     { return r.timestamp }
+func (r Receipt) Timestamp() types.Timestamp { return r.timestamp }
 func (r Receipt) SignedBy() types.ActorID   { return r.signedBy }
 func (r Receipt) Signature() types.Signature { return r.signature }
 func (r Receipt) InputHash() types.Hash    { return r.inputHash }
@@ -115,7 +113,7 @@ type TrustMetrics struct {
 	confidence  types.Score
 	trend       types.Weight
 	evidence    []types.EventID
-	lastUpdated time.Time
+	lastUpdated types.Timestamp
 	decayRate   types.Score
 }
 
@@ -127,7 +125,7 @@ func NewTrustMetrics(
 	confidence types.Score,
 	trend types.Weight,
 	evidence []types.EventID,
-	lastUpdated time.Time,
+	lastUpdated types.Timestamp,
 	decayRate types.Score,
 ) TrustMetrics {
 	bd := make(map[types.DomainScope]types.Score, len(byDomain))
@@ -164,7 +162,7 @@ func (m TrustMetrics) Evidence() []types.EventID {
 	copy(ev, m.evidence)
 	return ev
 }
-func (m TrustMetrics) LastUpdated() time.Time { return m.lastUpdated }
+func (m TrustMetrics) LastUpdated() types.Timestamp { return m.lastUpdated }
 func (m TrustMetrics) DecayRate() types.Score { return m.decayRate }
 
 // Expectation represents what should happen after an event. Immutable.
@@ -172,7 +170,7 @@ type Expectation struct {
 	id          types.EventID
 	trigger     types.EventID
 	description string
-	deadline    time.Time
+	deadline    types.Timestamp
 	severity    SeverityLevel
 	status      ExpectationStatus
 }
@@ -182,7 +180,7 @@ func NewExpectation(
 	id types.EventID,
 	trigger types.EventID,
 	description string,
-	deadline time.Time,
+	deadline types.Timestamp,
 	severity SeverityLevel,
 	status ExpectationStatus,
 ) (Expectation, error) {
@@ -209,7 +207,7 @@ func NewExpectation(
 func (e Expectation) ID() types.EventID         { return e.id }
 func (e Expectation) Trigger() types.EventID     { return e.trigger }
 func (e Expectation) Description() string        { return e.description }
-func (e Expectation) Deadline() time.Time        { return e.deadline }
+func (e Expectation) Deadline() types.Timestamp   { return e.deadline }
 func (e Expectation) Severity() SeverityLevel    { return e.severity }
 func (e Expectation) Status() ExpectationStatus  { return e.status }
 

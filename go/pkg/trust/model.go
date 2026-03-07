@@ -43,7 +43,7 @@ type trustState struct {
 	score       types.Score
 	byDomain    map[types.DomainScope]types.Score
 	evidence    []types.EventID
-	lastUpdated time.Time
+	lastUpdated types.Timestamp
 	trend       types.Weight
 }
 
@@ -75,7 +75,7 @@ func (m *DefaultTrustModel) getOrCreate(actorID types.ActorID) *trustState {
 	state := &trustState{
 		score:       m.config.InitialTrust,
 		byDomain:    make(map[types.DomainScope]types.Score),
-		lastUpdated: time.Now().UTC(),
+		lastUpdated: types.Now(),
 		trend:       types.MustWeight(0.0),
 	}
 	m.scores[key] = state
@@ -134,7 +134,7 @@ func (m *DefaultTrustModel) Update(_ context.Context, a actor.IActor, evidence e
 		state.evidence = state.evidence[len(state.evidence)-100:]
 	}
 
-	state.lastUpdated = time.Now().UTC()
+	state.lastUpdated = types.Now()
 
 	return m.buildMetrics(a.ID(), state), nil
 }
@@ -157,7 +157,7 @@ func (m *DefaultTrustModel) Decay(_ context.Context, a actor.IActor, elapsed tim
 		state.trend = types.MustWeight(math.Min(0, state.trend.Value()+0.01*days))
 	}
 
-	state.lastUpdated = time.Now().UTC()
+	state.lastUpdated = types.Now()
 
 	return m.buildMetrics(a.ID(), state), nil
 }
@@ -178,7 +178,7 @@ func (m *DefaultTrustModel) Between(_ context.Context, from actor.IActor, to act
 			types.MustScore(0.0), // low confidence
 			types.MustWeight(0.0),
 			nil,
-			time.Now().UTC(),
+			types.Now(),
 			m.config.DecayRate,
 		), nil
 	}

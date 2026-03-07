@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/event"
 	"github.com/lovyou-ai/eventgraph/go/pkg/store"
@@ -53,7 +52,7 @@ func (s *InMemoryActorStore) Register(publicKey types.PublicKey, displayName str
 	}
 
 	id := deriveActorID(publicKey)
-	a := NewActor(id, publicKey, displayName, actorType, nil, time.Now(), types.ActorStatusActive)
+	a := NewActor(id, publicKey, displayName, actorType, nil, types.Now(), types.ActorStatusActive)
 	s.actors[id] = a
 	s.byKey[keyHex] = id
 	s.ordered = append(s.ordered, id)

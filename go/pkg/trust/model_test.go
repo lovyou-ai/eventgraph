@@ -39,8 +39,8 @@ func testTrustEvent(actorID types.ActorID, prev, curr float64) event.Event {
 	return event.NewEvent(
 		1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000002"),
-		types.MustEventType("trust.updated"),
-		time.Now().UTC(),
+		event.EventTypeTrustUpdated,
+		types.Now(),
 		actorID,
 		content,
 		nil,
@@ -266,13 +266,13 @@ func TestNonTrustEventGivesSmallPositive(t *testing.T) {
 	ev := event.NewBootstrapEvent(
 		1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000003"),
-		types.MustEventType("system.bootstrapped"),
-		time.Now().UTC(),
+		event.EventTypeSystemBootstrapped,
+		types.Now(),
 		a.ID(),
 		event.BootstrapContent{
 			ActorID:      a.ID(),
 			ChainGenesis: types.ZeroHash(),
-			Timestamp:    time.Now(),
+			Timestamp:    types.Now(),
 		},
 		types.MustConversationID("conv_test000000000000000000000001"),
 		types.ZeroHash(),

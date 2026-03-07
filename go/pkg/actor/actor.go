@@ -1,8 +1,6 @@
 package actor
 
 import (
-	"time"
-
 	"github.com/lovyou-ai/eventgraph/go/pkg/event"
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
@@ -14,7 +12,7 @@ type IActor interface {
 	DisplayName() string
 	Type() event.ActorType
 	Metadata() map[string]any
-	CreatedAt() time.Time
+	CreatedAt() types.Timestamp
 	Status() types.ActorStatus
 }
 
@@ -25,7 +23,7 @@ type Actor struct {
 	displayName string
 	actorType   event.ActorType
 	metadata    map[string]any
-	createdAt   time.Time
+	createdAt   types.Timestamp
 	status      types.ActorStatus
 }
 
@@ -36,7 +34,7 @@ func NewActor(
 	displayName string,
 	actorType event.ActorType,
 	metadata map[string]any,
-	createdAt time.Time,
+	createdAt types.Timestamp,
 	status types.ActorStatus,
 ) Actor {
 	md := make(map[string]any, len(metadata))
@@ -65,7 +63,7 @@ func (a Actor) Metadata() map[string]any {
 	}
 	return md
 }
-func (a Actor) CreatedAt() time.Time    { return a.createdAt }
+func (a Actor) CreatedAt() types.Timestamp    { return a.createdAt }
 func (a Actor) Status() types.ActorStatus { return a.status }
 
 // withStatus returns a copy of the actor with a new status.

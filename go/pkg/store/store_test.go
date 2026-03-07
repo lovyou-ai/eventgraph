@@ -4,7 +4,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/event"
 	"github.com/lovyou-ai/eventgraph/go/pkg/store"
@@ -41,12 +40,12 @@ type headFromStore struct{ s store.Store }
 
 func (h headFromStore) Head() (types.Option[event.Event], error) { return h.s.Head() }
 
-func makeEvent(t *testing.T, s store.Store, eventType string, causes []types.EventID) event.Event {
+func makeEvent(t *testing.T, s store.Store, eventType types.EventType, causes []types.EventID) event.Event {
 	t.Helper()
 	registry := event.DefaultRegistry()
 	factory := event.NewEventFactory(registry)
 	ev, err := factory.Create(
-		types.MustEventType(eventType),
+		eventType,
 		types.MustActorID("actor_00000000000000000000000000000001"),
 		event.TrustUpdatedContent{
 			Actor:    types.MustActorID("actor_00000000000000000000000000000002"),
@@ -220,7 +219,7 @@ func TestAppendChainIntegrity(t *testing.T) {
 	}
 
 	// Append another event that chains correctly
-	ev2 := makeEvent(t, s, "trust.updated", []types.EventID{ev.ID()})
+	ev2 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev.ID()})
 	_, err = s.Append(ev2)
 	if err != nil {
 		t.Fatalf("Append chained event failed: %v", err)
@@ -264,7 +263,7 @@ func TestRecent(t *testing.T) {
 	ev := makeBootstrapEvent(t)
 	s.Append(ev)
 
-	ev2 := makeEvent(t, s, "trust.updated", []types.EventID{ev.ID()})
+	ev2 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev.ID()})
 	s.Append(ev2)
 
 	page, err := s.Recent(10, types.None[types.Cursor]())
@@ -286,10 +285,10 @@ func TestByType(t *testing.T) {
 	ev := makeBootstrapEvent(t)
 	s.Append(ev)
 
-	ev2 := makeEvent(t, s, "trust.updated", []types.EventID{ev.ID()})
+	ev2 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev.ID()})
 	s.Append(ev2)
 
-	page, err := s.ByType(types.MustEventType("trust.updated"), 10, types.None[types.Cursor]())
+	page, err := s.ByType(event.EventTypeTrustUpdated, 10, types.None[types.Cursor]())
 	if err != nil {
 		t.Fatalf("ByType failed: %v", err)
 	}
@@ -331,7 +330,7 @@ func TestSince(t *testing.T) {
 	ev := makeBootstrapEvent(t)
 	s.Append(ev)
 
-	ev2 := makeEvent(t, s, "trust.updated", []types.EventID{ev.ID()})
+	ev2 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev.ID()})
 	s.Append(ev2)
 
 	page, err := s.Since(ev.ID(), 10)
@@ -359,10 +358,10 @@ func TestAncestors(t *testing.T) {
 	ev0 := makeBootstrapEvent(t)
 	s.Append(ev0)
 
-	ev1 := makeEvent(t, s, "trust.updated", []types.EventID{ev0.ID()})
+	ev1 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev0.ID()})
 	s.Append(ev1)
 
-	ev2 := makeEvent(t, s, "trust.updated", []types.EventID{ev1.ID()})
+	ev2 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev1.ID()})
 	s.Append(ev2)
 
 	ancestors, err := s.Ancestors(ev2.ID(), 10)
@@ -387,7 +386,7 @@ func TestDescendants(t *testing.T) {
 	ev0 := makeBootstrapEvent(t)
 	s.Append(ev0)
 
-	ev1 := makeEvent(t, s, "trust.updated", []types.EventID{ev0.ID()})
+	ev1 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev0.ID()})
 	s.Append(ev1)
 
 	descendants, err := s.Descendants(ev0.ID(), 10)
@@ -427,7 +426,7 @@ func TestVerifyChain(t *testing.T) {
 	ev := makeBootstrapEvent(t)
 	s.Append(ev)
 
-	ev2 := makeEvent(t, s, "trust.updated", []types.EventID{ev.ID()})
+	ev2 := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev.ID()})
 	s.Append(ev2)
 
 	result, err := s.VerifyChain()
@@ -506,7 +505,7 @@ func TestConcurrentAppend(t *testing.T) {
 	// Build multiple events that all point to the same head
 	var events []event.Event
 	for i := 0; i < 5; i++ {
-		ev := makeEvent(t, s, "trust.updated", []types.EventID{ev.ID()})
+		ev := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{ev.ID()})
 		events = append(events, ev)
 	}
 
@@ -542,7 +541,7 @@ func TestFactoryRefusesEmptyCauses(t *testing.T) {
 	s := store.NewInMemoryStore()
 
 	_, err := factory.Create(
-		types.MustEventType("trust.updated"),
+		event.EventTypeTrustUpdated,
 		types.MustActorID("actor_00000000000000000000000000000001"),
 		event.TrustUpdatedContent{},
 		nil, // empty causes
@@ -586,7 +585,7 @@ func TestFactoryInvalidEventType(t *testing.T) {
 	s.Append(ev)
 
 	_, err := factory.Create(
-		types.MustEventType("trust.updated"),
+		event.EventTypeTrustUpdated,
 		types.MustActorID("actor_00000000000000000000000000000001"),
 		event.BootstrapContent{}, // wrong content for trust.updated
 		[]types.EventID{ev.ID()},
@@ -608,7 +607,7 @@ func TestRecentPagination(t *testing.T) {
 	// Add a few more events
 	prev := ev0
 	for i := 0; i < 3; i++ {
-		ev := makeEvent(t, s, "trust.updated", []types.EventID{prev.ID()})
+		ev := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{prev.ID()})
 		s.Append(ev)
 		prev = ev
 	}
@@ -648,7 +647,7 @@ func TestEdgeIndexing(t *testing.T) {
 	to := types.MustActorID("actor_00000000000000000000000000000002")
 
 	edgeEv, err := factory.Create(
-		types.MustEventType("edge.created"),
+		event.EventTypeEdgeCreated,
 		from,
 		event.EdgeCreatedContent{
 			From:      from,
@@ -657,7 +656,7 @@ func TestEdgeIndexing(t *testing.T) {
 			Weight:    types.MustWeight(0.8),
 			Direction: event.EdgeDirectionCentripetal,
 			Scope:     types.Some(types.MustDomainScope("test")),
-			ExpiresAt: types.None[time.Time](),
+			ExpiresAt: types.None[types.Timestamp](),
 		},
 		[]types.EventID{ev.ID()},
 		types.MustConversationID("conv_00000000000000000000000000000001"),
@@ -708,8 +707,8 @@ func TestAppendWrongPrevHash(t *testing.T) {
 	wrongHash := types.MustHash("0000000000000000000000000000000000000000000000000000000000000000")
 	badEv := event.NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000099"),
-		types.MustEventType("trust.updated"),
-		time.Now().UTC(),
+		event.EventTypeTrustUpdated,
+		types.Now(),
 		types.MustActorID("actor_00000000000000000000000000000001"),
 		event.TrustUpdatedContent{},
 		[]types.EventID{ev.ID()},
@@ -733,7 +732,7 @@ func TestSincePagination(t *testing.T) {
 
 	prev := ev0
 	for i := 0; i < 5; i++ {
-		ev := makeEvent(t, s, "trust.updated", []types.EventID{prev.ID()})
+		ev := makeEvent(t, s, event.EventTypeTrustUpdated, []types.EventID{prev.ID()})
 		s.Append(ev)
 		prev = ev
 	}
@@ -771,6 +770,3 @@ func TestStoreErrorMarkerInterface(t *testing.T) {
 		_ = err.Error()
 	}
 }
-
-// Unused import guard - ensure time is used
-var _ = time.Now
