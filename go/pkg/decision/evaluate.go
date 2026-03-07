@@ -342,15 +342,18 @@ func patternMatch(value any, match event.MatchValue) bool {
 	return s == pattern
 }
 
+// parseOutcome extracts a decision outcome from LLM response text.
+// Priority is fail-safe: deny > escalate > permit > defer.
+// If multiple keywords appear in the response, the most restrictive wins.
 func parseOutcome(content string) event.DecisionOutcome {
 	lower := strings.ToLower(strings.TrimSpace(content))
 	switch {
-	case strings.Contains(lower, "permit"):
-		return event.DecisionOutcomePermit
 	case strings.Contains(lower, "deny"):
 		return event.DecisionOutcomeDeny
 	case strings.Contains(lower, "escalate"):
 		return event.DecisionOutcomeEscalate
+	case strings.Contains(lower, "permit"):
+		return event.DecisionOutcomePermit
 	default:
 		return event.DecisionOutcomeDefer
 	}

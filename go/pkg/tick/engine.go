@@ -134,8 +134,9 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 			deferredMutations = append(deferredMutations, deferred...)
 		}
 
-		// Count only successfully applied mutations (persisted events + deferred)
-		totalMutations += len(newEvents) + len(deferred)
+		// Count successfully persisted events now; deferred mutations are counted
+		// after application at end of tick (some may fail).
+		totalMutations += len(newEvents)
 
 		if len(newEvents) == 0 {
 			// Only mark as quiesced if there were no errors — if all AddEvent
@@ -167,6 +168,7 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 	// 3. Apply deferred (non-AddEvent) mutations
 	deferredErrors := e.applyMutations(deferredMutations, tick)
 	allMutationErrors = append(allMutationErrors, deferredErrors...)
+	totalMutations += len(deferredMutations) - len(deferredErrors)
 
 	return Result{
 		Tick:           tick,
@@ -258,6 +260,14 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 		var work []primEvents
 		for _, p := range prims {
 			matching := matchEvents(p, events)
+			// On subsequent waves (re-invocation), only invoke primitives that
+			// have matching events. This prevents cadence-bypassed primitives
+			// from re-firing with empty event slices on every wave.
+			// First-wave primitives are always invoked — they may do work
+			// based on the snapshot alone even with no matching events.
+			if len(matching) == 0 && invokedThisTick[p.ID()] {
+				continue
+			}
 			work = append(work, primEvents{prim: p, events: matching})
 		}
 
@@ -357,7 +367,11 @@ func (e *Engine) eligiblePrimitives(tick types.Tick, snapshot primitive.Snapshot
 			continue
 		}
 
-		// Cadence gating — only on first invocation per tick
+		// Cadence gating — applied on first invocation per tick.
+		// Re-invocation within the same tick (subsequent waves) is permitted
+		// because new events from earlier waves may need processing.
+		// The event-matching filter in runWave ensures primitives only fire
+		// when they have subscribed events to process.
 		if !invokedThisTick[p.ID()] {
 			lastTick := e.registry.LastTick(p.ID())
 			elapsed := tick.Value() - lastTick.Value()

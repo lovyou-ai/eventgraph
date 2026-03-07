@@ -145,13 +145,14 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 	}
 
 	// Handle edge supersession: remove the superseded edge from the active set.
+	// Uses order-preserving removal (not swap-with-last) to avoid corrupting
+	// unrelated edges when the superseded edge is not the last element.
 	if ev.Type() == event.EventTypeEdgeSuperseded {
 		if ec, ok := ev.Content().(event.EdgeSupersededContent); ok {
 			prevID := ec.PreviousEdge.Value()
 			for i, e := range s.edges {
 				if e.ID().Value() == prevID {
-					s.edges[i] = s.edges[len(s.edges)-1]
-					s.edges = s.edges[:len(s.edges)-1]
+					s.edges = append(s.edges[:i], s.edges[i+1:]...)
 					break
 				}
 			}
@@ -228,13 +229,11 @@ func (s *InMemoryStore) Since(afterID types.EventID, limit int) (types.Page[even
 	}
 
 	hasMore := startIdx+1+limit < len(s.events)
-	var cursor types.Option[types.Cursor]
-	if hasMore && len(items) > 0 {
-		c := types.MustCursor(items[len(items)-1].ID().Value())
-		cursor = types.Some(c)
-	}
-
-	return types.NewPage(items, cursor, hasMore), nil
+	// Since is a forward query keyed by EventID, not Cursor. Returning a cursor
+	// would be misleading — it can't be passed back to Since (which takes EventID)
+	// and would produce wrong results if passed to reverse-order methods like Recent.
+	// Callers should use items[len(items)-1].ID() to continue forward iteration.
+	return types.NewPage(items, types.None[types.Cursor](), hasMore), nil
 }
 
 func (s *InMemoryStore) Ancestors(id types.EventID, maxDepth int) ([]event.Event, error) {
