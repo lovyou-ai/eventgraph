@@ -194,6 +194,9 @@ func ZeroHash() Hash {
 
 func (h Hash) Value() string              { return h.value }
 func (h Hash) String() string             { return h.value }
+// IsZero returns true if the Hash is unset (empty string) or the all-zeros genesis hash.
+// Both representations are considered "zero" for canonical form purposes.
+// Struct equality (==) distinguishes between Hash{} and ZeroHash().
 func (h Hash) IsZero() bool               { return h.value == "" || h.value == strings.Repeat("0", 64) }
 func (h Hash) MarshalJSON() ([]byte, error) { return json.Marshal(h.value) }
 func (h *Hash) UnmarshalJSON(b []byte) error { return unmarshalID(b, &h.value, NewHash) }
@@ -300,6 +303,18 @@ func (id PrimitiveID) String() string             { return id.value }
 func (id PrimitiveID) MarshalJSON() ([]byte, error) { return json.Marshal(id.value) }
 func (id *PrimitiveID) UnmarshalJSON(b []byte) error {
 	return unmarshalStringID(b, &id.value, "PrimitiveID")
+}
+
+// MarshalText implements encoding.TextMarshaler so PrimitiveID can be used as a JSON map key.
+func (id PrimitiveID) MarshalText() ([]byte, error) { return []byte(id.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler so PrimitiveID can be used as a JSON map key.
+func (id *PrimitiveID) UnmarshalText(b []byte) error {
+	if len(b) == 0 {
+		return &EmptyRequiredError{Field: "PrimitiveID"}
+	}
+	id.value = string(b)
+	return nil
 }
 
 // EventType is a registered event type string (e.g., "trust.updated").

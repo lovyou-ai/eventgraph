@@ -97,14 +97,17 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 		if !ok {
 			return event.Event{}, fmt.Errorf("edge.created event %s has wrong content type %T", ev.ID().Value(), ev.Content())
 		}
-		edgeID := types.MustEdgeID(ev.ID().Value())
-		var edgeErr error
-		edge, edgeErr = event.NewEdge(
+		edgeID, edgeIDErr := types.NewEdgeID(ev.ID().Value())
+		if edgeIDErr != nil {
+			return event.Event{}, fmt.Errorf("derive edge ID from event %s: %w", ev.ID().Value(), edgeIDErr)
+		}
+		var newEdgeErr error
+		edge, newEdgeErr = event.NewEdge(
 			edgeID, ec.From, ec.To, ec.EdgeType, ec.Weight, ec.Direction,
 			ec.Scope, nil, ev.Timestamp(), ec.ExpiresAt,
 		)
-		if edgeErr != nil {
-			return event.Event{}, fmt.Errorf("index edge: %w", edgeErr)
+		if newEdgeErr != nil {
+			return event.Event{}, fmt.Errorf("index edge: %w", newEdgeErr)
 		}
 		hasEdge = true
 	}

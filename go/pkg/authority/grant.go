@@ -14,8 +14,15 @@ import (
 // grantAndPersist creates an authority edge and persists it to the store
 // as an edge.created event. Used by both DefaultAuthorityChain and DelegationChain.
 func grantAndPersist(s store.Store, factory *event.EventFactory, signer event.Signer, from actor.IActor, to actor.IActor, scope types.DomainScope, weight types.Score) (event.Edge, error) {
-	// Convert Score [0,1] → Weight [-1,1] once for both content and edge
-	edgeWeight := types.MustWeight(weight.Value()*2 - 1)
+	// Convert Score [0,1] → Weight [-1,1] once for both content and edge.
+	// Clamp to handle floating-point precision at boundaries.
+	raw := weight.Value()*2 - 1
+	if raw > 1.0 {
+		raw = 1.0
+	} else if raw < -1.0 {
+		raw = -1.0
+	}
+	edgeWeight := types.MustWeight(raw)
 
 	// Build the edge content
 	content := event.EdgeCreatedContent{

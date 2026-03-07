@@ -42,7 +42,9 @@ func main() {
 	s := store.NewInMemoryStore()
 	as := actor.NewInMemoryActorStore()
 	g := graph.New(s, as)
-	g.Start()
+	if err := g.Start(); err != nil {
+		fatal("graph start failed: %v", err)
+	}
 	defer g.Close()
 
 	switch cmd {

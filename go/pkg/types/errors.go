@@ -80,6 +80,26 @@ func (e *InvalidActorTransitionError) Error() string {
 }
 func (e *InvalidActorTransitionError) validationError() {}
 
+// InvalidLifecycleStateError indicates a string is not a recognized lifecycle state.
+type InvalidLifecycleStateError struct {
+	Value string
+}
+
+func (e *InvalidLifecycleStateError) Error() string {
+	return fmt.Sprintf("invalid lifecycle state: %q", e.Value)
+}
+func (e *InvalidLifecycleStateError) validationError() {}
+
+// InvalidActorStatusError indicates a string is not a recognized actor status.
+type InvalidActorStatusError struct {
+	Value string
+}
+
+func (e *InvalidActorStatusError) Error() string {
+	return fmt.Sprintf("invalid actor status: %q", e.Value)
+}
+func (e *InvalidActorStatusError) validationError() {}
+
 // ValidationErrorVisitor provides exhaustive dispatch over validation errors.
 type ValidationErrorVisitor interface {
 	VisitOutOfRange(*OutOfRangeError)
@@ -88,6 +108,8 @@ type ValidationErrorVisitor interface {
 	VisitEmptyRequired(*EmptyRequiredError)
 	VisitInvalidLifecycleTransition(*InvalidLifecycleTransitionError)
 	VisitInvalidActorTransition(*InvalidActorTransitionError)
+	VisitInvalidLifecycleState(*InvalidLifecycleStateError)
+	VisitInvalidActorStatus(*InvalidActorStatusError)
 }
 
 // VisitableValidationError extends ValidationError with visitor support.
@@ -102,3 +124,5 @@ func (e *InvalidFormatError) Accept(v ValidationErrorVisitor)               { v.
 func (e *EmptyRequiredError) Accept(v ValidationErrorVisitor)               { v.VisitEmptyRequired(e) }
 func (e *InvalidLifecycleTransitionError) Accept(v ValidationErrorVisitor)  { v.VisitInvalidLifecycleTransition(e) }
 func (e *InvalidActorTransitionError) Accept(v ValidationErrorVisitor)      { v.VisitInvalidActorTransition(e) }
+func (e *InvalidLifecycleStateError) Accept(v ValidationErrorVisitor)       { v.VisitInvalidLifecycleState(e) }
+func (e *InvalidActorStatusError) Accept(v ValidationErrorVisitor)          { v.VisitInvalidActorStatus(e) }

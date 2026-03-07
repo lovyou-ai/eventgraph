@@ -817,6 +817,8 @@ func (v *testValidationVisitor) VisitInvalidFormat(*InvalidFormatError)         
 func (v *testValidationVisitor) VisitEmptyRequired(*EmptyRequiredError)                               {}
 func (v *testValidationVisitor) VisitInvalidLifecycleTransition(*InvalidLifecycleTransitionError)     {}
 func (v *testValidationVisitor) VisitInvalidActorTransition(*InvalidActorTransitionError)             {}
+func (v *testValidationVisitor) VisitInvalidLifecycleState(*InvalidLifecycleStateError)               {}
+func (v *testValidationVisitor) VisitInvalidActorStatus(*InvalidActorStatusError)                     {}
 
 // --- Remaining ID types ---
 

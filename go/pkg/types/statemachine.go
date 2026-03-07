@@ -27,6 +27,15 @@ var validLifecycleStates = map[LifecycleState]bool{
 	LifecycleProcessing: true, LifecycleEmitting: true, LifecycleDeactivating: true,
 }
 
+// NewLifecycleState creates a LifecycleState. Returns an error if the value is not a known state.
+func NewLifecycleState(v string) (LifecycleState, error) {
+	s := LifecycleState(v)
+	if !validLifecycleStates[s] {
+		return "", &InvalidLifecycleStateError{Value: v}
+	}
+	return s, nil
+}
+
 // IsValid returns true if the lifecycle state is a known state.
 func (s LifecycleState) IsValid() bool { return validLifecycleStates[s] }
 
@@ -75,6 +84,15 @@ var validActorTransitions = map[ActorStatus][]ActorStatus{
 
 var validActorStatuses = map[ActorStatus]bool{
 	ActorStatusActive: true, ActorStatusSuspended: true, ActorStatusMemorial: true,
+}
+
+// NewActorStatus creates an ActorStatus. Returns an error if the value is not a known status.
+func NewActorStatus(v string) (ActorStatus, error) {
+	s := ActorStatus(v)
+	if !validActorStatuses[s] {
+		return "", &InvalidActorStatusError{Value: v}
+	}
+	return s, nil
 }
 
 // IsValid returns true if the actor status is a known status.

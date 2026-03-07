@@ -79,6 +79,9 @@ func evaluateMechanical(n *InternalNode, input EvaluateInput) (DecisionNode, eve
 	}
 
 	// No branch matched — take default
+	if n.Default == nil {
+		return nil, event.PathStep{}, fmt.Errorf("no branch matched and no default node set for condition on field %q", n.Condition.Field.Value())
+	}
 	step := event.PathStep{
 		Condition: n.Condition,
 		Branch:    event.MatchValue{String: types.Some("default")},

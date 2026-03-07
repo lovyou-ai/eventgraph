@@ -97,6 +97,7 @@ func (g *Grammar) Extend(
 }
 
 // Retract tombstones own content. Provenance survives. (Operation 5)
+// Only the original author can retract their own content.
 func (g *Grammar) Retract(
 	ctx context.Context,
 	source types.ActorID,
@@ -105,6 +106,14 @@ func (g *Grammar) Retract(
 	conversationID types.ConversationID,
 	signer event.Signer,
 ) (event.Event, error) {
+	// Verify the source authored the target event
+	targetEv, err := g.graph.Store().Get(target)
+	if err != nil {
+		return event.Event{}, fmt.Errorf("retract: target event not found: %w", err)
+	}
+	if targetEv.Source() != source {
+		return event.Event{}, fmt.Errorf("retract: actor %s cannot retract event %s authored by %s", source.Value(), target.Value(), targetEv.Source().Value())
+	}
 	return g.graph.Record(
 		event.EventTypeGrammarRetract, source,
 		event.GrammarRetractContent{Target: target, Reason: reason},
