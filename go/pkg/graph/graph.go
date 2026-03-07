@@ -137,6 +137,8 @@ func (g *Graph) Close() error {
 // Record creates and persists an event, then notifies the bus.
 // Uses exclusive lock to serialize event creation + append, ensuring hash chain
 // integrity (each event's PrevHash must reference the immediately preceding event).
+// The lock is released before bus.Publish to prevent deadlock if a subscriber
+// calls back into the Graph.
 func (g *Graph) Record(
 	eventType types.EventType,
 	source types.ActorID,
@@ -146,60 +148,72 @@ func (g *Graph) Record(
 	signer event.Signer,
 ) (event.Event, error) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 
 	if g.closed {
+		g.mu.Unlock()
 		return event.Event{}, fmt.Errorf("graph is closed")
 	}
 	if !g.started {
+		g.mu.Unlock()
 		return event.Event{}, fmt.Errorf("graph is not started (call Start first)")
 	}
 
 	ev, err := g.factory.Create(eventType, source, content, causes, conversationID, g.store, signer)
 	if err != nil {
+		g.mu.Unlock()
 		return event.Event{}, err
 	}
 
 	stored, err := g.store.Append(ev)
 	if err != nil {
+		g.mu.Unlock()
 		return event.Event{}, err
 	}
 
+	g.mu.Unlock()
 	g.bus.Publish(stored)
 	return stored, nil
 }
 
 // Bootstrap initializes the graph with a genesis event.
 // Uses exclusive lock to prevent concurrent double-bootstrap.
+// The lock is released before bus.Publish to prevent deadlock if a subscriber
+// calls back into the Graph.
 func (g *Graph) Bootstrap(systemActor types.ActorID, signer event.Signer) (event.Event, error) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	if g.closed {
+		g.mu.Unlock()
 		return event.Event{}, fmt.Errorf("graph is closed")
 	}
 	if !g.started {
+		g.mu.Unlock()
 		return event.Event{}, fmt.Errorf("graph is not started (call Start first)")
 	}
 
 	count, err := g.store.Count()
 	if err != nil {
+		g.mu.Unlock()
 		return event.Event{}, err
 	}
 	if count > 0 {
+		g.mu.Unlock()
 		return event.Event{}, fmt.Errorf("graph already bootstrapped")
 	}
 
 	bf := event.NewBootstrapFactory(g.registry)
 	ev, err := bf.Init(systemActor, signer)
 	if err != nil {
+		g.mu.Unlock()
 		return event.Event{}, err
 	}
 
 	stored, err := g.store.Append(ev)
 	if err != nil {
+		g.mu.Unlock()
 		return event.Event{}, err
 	}
 
+	g.mu.Unlock()
 	g.bus.Publish(stored)
 	return stored, nil
 }

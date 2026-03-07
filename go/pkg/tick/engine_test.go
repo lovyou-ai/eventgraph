@@ -265,6 +265,8 @@ func TestTickSubscriptionFiltering(t *testing.T) {
 func TestTickMutationProducesEvents(t *testing.T) {
 	var wavesSeen atomic.Int32
 	actorID := types.MustActorID("actor_system0000000000000000001")
+	// bootstrapID is captured after newEngine creates the bootstrap event.
+	var bootstrapID types.EventID
 
 	p := &testPrimitive{
 		id:      types.MustPrimitiveID("event_emitter"),
@@ -276,13 +278,13 @@ func TestTickMutationProducesEvents(t *testing.T) {
 		processFunc: func(tk types.Tick, events []event.Event, snap primitive.Snapshot) ([]primitive.Mutation, error) {
 			wave := wavesSeen.Add(1)
 			if wave == 1 {
-				// First invocation: emit an event
+				// First invocation: emit an event with bootstrap as cause (it's in the store).
 				return []primitive.Mutation{
 					primitive.AddEvent{
 						Type:    event.EventTypeTrustUpdated,
 						Source:  actorID,
 						Content: event.TrustUpdatedContent{},
-						Causes:  []types.EventID{events[0].ID()},
+						Causes:  []types.EventID{bootstrapID},
 					},
 				}, nil
 			}
@@ -292,6 +294,7 @@ func TestTickMutationProducesEvents(t *testing.T) {
 	}
 
 	e, _, bootstrap := newEngine(t, p)
+	bootstrapID = bootstrap.ID()
 
 	ev := event.NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000099"),
@@ -494,37 +497,10 @@ func TestTickUpdateStateMutation(t *testing.T) {
 func TestTickWaveLimitPreventsInfiniteLoop(t *testing.T) {
 	actorID := types.MustActorID("actor_system0000000000000000001")
 
-	p := &testPrimitive{
-		id:      types.MustPrimitiveID("infinite_emitter"),
-		layer:   types.MustLayer(0),
-		cadence: types.MustCadence(1),
-		subscriptions: []types.SubscriptionPattern{
-			types.MustSubscriptionPattern("*"),
-		},
-		processFunc: func(tk types.Tick, events []event.Event, snap primitive.Snapshot) ([]primitive.Mutation, error) {
-			// Always emit a new event — would loop forever without wave limit
-			// Use a dummy cause — the factory will validate it
-			causeID := types.MustEventID("019462a0-0000-7000-8000-000000000099")
-			if len(events) > 0 {
-				causeID = events[0].ID()
-			}
-			return []primitive.Mutation{
-				primitive.AddEvent{
-					Type:    event.EventTypeTrustUpdated,
-					Source:  actorID,
-					Content: event.TrustUpdatedContent{},
-					Causes:  []types.EventID{causeID},
-				},
-			}, nil
-		},
-	}
-
 	config := tick.Config{MaxWavesPerTick: 3}
 	s := store.NewInMemoryStore()
 	as := actor.NewInMemoryActorStore()
 	registry := primitive.NewRegistry()
-	registry.Register(p)
-	registry.Activate(p.ID())
 
 	eventRegistry := event.DefaultRegistry()
 	factory := event.NewEventFactory(eventRegistry)
@@ -533,6 +509,30 @@ func TestTickWaveLimitPreventsInfiniteLoop(t *testing.T) {
 	bf := event.NewBootstrapFactory(eventRegistry)
 	bootstrap, _ := bf.Init(actorID, signer)
 	s.Append(bootstrap)
+
+	p := &testPrimitive{
+		id:      types.MustPrimitiveID("infinite_emitter"),
+		layer:   types.MustLayer(0),
+		cadence: types.MustCadence(1),
+		subscriptions: []types.SubscriptionPattern{
+			types.MustSubscriptionPattern("*"),
+		},
+		processFunc: func(tk types.Tick, events []event.Event, snap primitive.Snapshot) ([]primitive.Mutation, error) {
+			// Always emit a new event — would loop forever without wave limit.
+			// Use bootstrap as cause (it's always in the store).
+			return []primitive.Mutation{
+				primitive.AddEvent{
+					Type:    event.EventTypeTrustUpdated,
+					Source:  actorID,
+					Content: event.TrustUpdatedContent{},
+					Causes:  []types.EventID{bootstrap.ID()},
+				},
+			}, nil
+		},
+	}
+
+	registry.Register(p)
+	registry.Activate(p.ID())
 
 	e := tick.NewEngine(registry, s, as, factory, signer, config, nil)
 

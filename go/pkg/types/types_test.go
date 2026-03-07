@@ -1255,126 +1255,198 @@ func TestActorStatus_IsValid(t *testing.T) {
 
 func TestMustActorID_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustActorID("")
 	t.Fatal("should have panicked")
 }
 
 func TestMustHash_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustHash("bad")
 	t.Fatal("should have panicked")
 }
 
 func TestMustFieldPath_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustFieldPath("")
 	t.Fatal("should have panicked")
 }
 
 func TestMustDomainScope_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustDomainScope("")
 	t.Fatal("should have panicked")
 }
 
 func TestMustPublicKey_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustPublicKey([]byte{1, 2, 3})
 	t.Fatal("should have panicked")
 }
 
 func TestMustSignature_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustSignature([]byte{1, 2, 3})
 	t.Fatal("should have panicked")
 }
 
 func TestMustWeight_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustWeight(5.0)
 	t.Fatal("should have panicked")
 }
 
 func TestMustActivation_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustActivation(5.0)
 	t.Fatal("should have panicked")
 }
 
 func TestMustCadence_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustCadence(0)
 	t.Fatal("should have panicked")
 }
 
 func TestMustTick_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustTick(-1)
 	t.Fatal("should have panicked")
 }
 
 func TestMustDuration_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustDuration(-1)
 	t.Fatal("should have panicked")
 }
 
 func TestMustEdgeID_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustEdgeID("bad")
 	t.Fatal("should have panicked")
 }
 
 func TestMustConversationID_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustConversationID("")
 	t.Fatal("should have panicked")
 }
 
 func TestMustEnvelopeID_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustEnvelopeID("bad")
 	t.Fatal("should have panicked")
 }
 
 func TestMustTreatyID_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustTreatyID("bad")
 	t.Fatal("should have panicked")
 }
 
 func TestMustPrimitiveID_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustPrimitiveID("")
 	t.Fatal("should have panicked")
 }
 
 func TestMustEventType_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustEventType("BAD")
 	t.Fatal("should have panicked")
 }
 
 func TestMustSubscriptionPattern_Panics(t *testing.T) {
 	t.Parallel()
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
 	MustSubscriptionPattern("BAD PATTERN")
 	t.Fatal("should have panicked")
 }

@@ -253,6 +253,17 @@ func (m *DefaultTrustModel) UpdateBetween(_ context.Context, from actor.IActor, 
 	newScore = math.Max(0, math.Min(1, newScore))
 	state.score = types.MustScore(newScore)
 
+	// Update domain-specific score if evidence carries a domain
+	if tc, ok := evidence.Content().(event.TrustUpdatedContent); ok {
+		var domainScore float64
+		if existing, has := state.byDomain[tc.Domain]; has {
+			domainScore = math.Max(0, math.Min(1, existing.Value()+delta))
+		} else {
+			domainScore = math.Max(0, math.Min(1, m.config.InitialTrust.Value()+delta))
+		}
+		state.byDomain[tc.Domain] = types.MustScore(domainScore)
+	}
+
 	if delta > 0 {
 		state.trend = types.MustWeight(math.Min(1, state.trend.Value()+0.1))
 	} else if delta < 0 {

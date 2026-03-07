@@ -37,8 +37,7 @@ func pubKeyHex(pk types.PublicKey) string {
 func deriveActorID(pk types.PublicKey) types.ActorID {
 	h := sha256.Sum256(pk.Bytes())
 	id := fmt.Sprintf("actor_%s", hex.EncodeToString(h[:16]))
-	aid, _ := types.NewActorID(id)
-	return aid
+	return types.MustActorID(id)
 }
 
 // Register creates a new actor or returns the existing one if the public key is already registered.

@@ -290,17 +290,24 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 					err:       processErr,
 				}
 
-				// Transition: Processing → Active (or Emitting → Active if mutations exist)
+				// Transition: Processing → Active (or Emitting → Active if mutations exist).
+				// Preserve the original processErr if lifecycle restoration also fails.
+				var lcErr error
 				if len(mutations) > 0 {
-					if lcErr := e.registry.SetLifecycle(pid, types.LifecycleEmitting); lcErr != nil {
-						results[idx].err = fmt.Errorf("lifecycle Processing→Emitting: %w", lcErr)
-					} else if lcErr := e.registry.SetLifecycle(pid, types.LifecycleActive); lcErr != nil {
-						results[idx].err = fmt.Errorf("lifecycle Emitting→Active: %w", lcErr)
+					if err := e.registry.SetLifecycle(pid, types.LifecycleEmitting); err != nil {
+						lcErr = fmt.Errorf("lifecycle Processing→Emitting: %w", err)
+					} else if err := e.registry.SetLifecycle(pid, types.LifecycleActive); err != nil {
+						lcErr = fmt.Errorf("lifecycle Emitting→Active: %w", err)
 					}
 				} else {
-					if lcErr := e.registry.SetLifecycle(pid, types.LifecycleActive); lcErr != nil {
-						results[idx].err = fmt.Errorf("lifecycle Processing→Active: %w", lcErr)
+					if err := e.registry.SetLifecycle(pid, types.LifecycleActive); err != nil {
+						lcErr = fmt.Errorf("lifecycle Processing→Active: %w", err)
 					}
+				}
+				if processErr != nil && lcErr != nil {
+					results[idx].err = fmt.Errorf("%w; additionally: %v", processErr, lcErr)
+				} else if lcErr != nil {
+					results[idx].err = lcErr
 				}
 
 				// Record last tick only on success

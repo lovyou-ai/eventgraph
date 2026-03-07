@@ -76,6 +76,19 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 		}
 	}
 
+	// Verify causal predecessors exist (CAUSALITY invariant).
+	// Bootstrap events have no causes; all others must reference existing events.
+	if !ev.IsBootstrap() {
+		for _, causeID := range ev.Causes() {
+			if _, ok := s.byID[causeID]; !ok {
+				return event.Event{}, &CausalLinkMissingError{
+					EventID:      ev.ID(),
+					MissingCause: causeID,
+				}
+			}
+		}
+	}
+
 	// Validate edge before mutating any indices
 	var edge event.Edge
 	var hasEdge bool
@@ -327,8 +340,11 @@ func (s *InMemoryStore) VerifyChain() (event.ChainVerifiedContent, error) {
 		}
 	}
 
-	elapsed := time.Since(start)
-	dur := types.MustDuration(elapsed.Nanoseconds())
+	ns := time.Since(start).Nanoseconds()
+	if ns < 0 {
+		ns = 0 // clock skew protection — MustDuration panics on negative
+	}
+	dur := types.MustDuration(ns)
 	return event.ChainVerifiedContent{
 		Valid:    true,
 		Length:   len(s.events),

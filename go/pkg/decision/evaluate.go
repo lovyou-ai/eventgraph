@@ -101,7 +101,7 @@ func evaluateSemantic(ctx context.Context, n *InternalNode, input EvaluateInput,
 		prompt = n.Condition.Prompt.Unwrap()
 	}
 
-	resp, err := intel.Reason(ctx, prompt, nil)
+	resp, err := intel.Reason(ctx, prompt, input.History)
 	if err != nil {
 		// Intelligence failed — fall through to default
 		step := event.PathStep{
@@ -243,7 +243,7 @@ func testCondition(value any, op event.ConditionOperator, match event.MatchValue
 		return patternMatch(value, match), nil
 	case event.ConditionOperatorSemantic:
 		// Semantic operators are handled by evaluateSemantic before reaching here.
-		return false, nil
+		return false, fmt.Errorf("ConditionOperatorSemantic must not reach testCondition; use evaluateSemantic")
 	default:
 		return false, fmt.Errorf("unhandled ConditionOperator: %s", op)
 	}
