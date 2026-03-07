@@ -37,9 +37,17 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Idempotency: if same ID exists, return it
+	// Idempotency: if same ID exists, verify hash matches and return it
 	if idx, ok := s.byID[ev.ID()]; ok {
-		return s.events[idx], nil
+		stored := s.events[idx]
+		if stored.Hash() != ev.Hash() {
+			return event.Event{}, &HashMismatchError{
+				EventID:  ev.ID(),
+				Computed: ev.Hash(),
+				Stored:   stored.Hash(),
+			}
+		}
+		return stored, nil
 	}
 
 	// Verify PrevHash matches chain head

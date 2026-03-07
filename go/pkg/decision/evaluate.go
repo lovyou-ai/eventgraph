@@ -191,7 +191,9 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 		Confidence: resp.Confidence(),
 	})
 	if len(leaf.Stats.ResponseHistory) > maxResponseHistory {
-		leaf.Stats.ResponseHistory = leaf.Stats.ResponseHistory[len(leaf.Stats.ResponseHistory)-maxResponseHistory:]
+		tail := make([]ResponseRecord, maxResponseHistory)
+		copy(tail, leaf.Stats.ResponseHistory[len(leaf.Stats.ResponseHistory)-maxResponseHistory:])
+		leaf.Stats.ResponseHistory = tail
 	}
 	leaf.mu.Unlock()
 

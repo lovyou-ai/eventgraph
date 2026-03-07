@@ -75,14 +75,8 @@ func NewDefaultTrustModel() *DefaultTrustModel {
 }
 
 // NewDefaultTrustModelWithConfig creates a DefaultTrustModel with custom config.
-// Zero values for ObservedEventDelta and TrendDecayRate default to 0.01.
+// All config values are used as-is — zero values are respected (no implicit defaults).
 func NewDefaultTrustModelWithConfig(config DefaultConfig) *DefaultTrustModel {
-	if config.ObservedEventDelta == 0 {
-		config.ObservedEventDelta = 0.01
-	}
-	if config.TrendDecayRate == 0 {
-		config.TrendDecayRate = 0.01
-	}
 	return &DefaultTrustModel{
 		config:   config,
 		scores:   make(map[trustKey]*trustState),

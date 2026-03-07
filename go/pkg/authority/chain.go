@@ -49,9 +49,9 @@ func (c *DelegationChain) AddPolicy(policy AuthorityPolicy) {
 
 func (c *DelegationChain) Evaluate(ctx context.Context, a actor.IActor, action string) (AuthorityResult, error) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	policy := c.findPolicy(action)
+	c.mu.RUnlock()
+
 	// walkChain always returns at least one AuthorityLink.
 	chain, err := c.walkChain(ctx, a.ID(), policy, nil, 0)
 	if err != nil {
@@ -77,9 +77,9 @@ func (c *DelegationChain) Evaluate(ctx context.Context, a actor.IActor, action s
 
 func (c *DelegationChain) Chain(ctx context.Context, a actor.IActor, action string) ([]event.AuthorityLink, error) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	policy := c.findPolicy(action)
+	c.mu.RUnlock()
+
 	// walkChain always returns at least one AuthorityLink.
 	chain, err := c.walkChain(ctx, a.ID(), policy, nil, 0)
 	if err != nil {
@@ -108,7 +108,7 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 	}
 
 	if visited[actorID] {
-		return nil, nil // cycle detected
+		return nil, fmt.Errorf("delegation cycle detected at actor %s", actorID.Value())
 	}
 	if depth >= MaxChainDepth {
 		return nil, ErrChainDepthExceeded

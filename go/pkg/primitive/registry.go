@@ -158,7 +158,7 @@ func (r *Registry) UpdateState(id types.PrimitiveID, key string, value any) erro
 	if !ok {
 		return fmt.Errorf("primitive %q not found", id.Value())
 	}
-	ms.state[key] = value
+	ms.state[key] = deepCopyValue(value)
 	return nil
 }
 

@@ -697,6 +697,8 @@ func TestTickMixedMutations(t *testing.T) {
 	actorID := types.MustActorID("actor_system0000000000000000001")
 	targetID := types.MustActorID("actor_system0000000000000000002")
 
+	var bootstrapID types.EventID
+
 	p := &testPrimitive{
 		id:      primID,
 		layer:   types.MustLayer(0),
@@ -710,7 +712,7 @@ func TestTickMixedMutations(t *testing.T) {
 					Type:    event.EventTypeTrustUpdated,
 					Source:  actorID,
 					Content: event.TrustUpdatedContent{},
-					Causes:  []types.EventID{events[0].ID()},
+					Causes:  []types.EventID{bootstrapID},
 				},
 				primitive.AddEdge{
 					From:     actorID,
@@ -726,6 +728,7 @@ func TestTickMixedMutations(t *testing.T) {
 	}
 
 	e, _, bootstrap := newEngine(t, p)
+	bootstrapID = bootstrap.ID()
 
 	ev := event.NewEvent(1,
 		types.MustEventID("019462a0-0000-7000-8000-000000000099"),

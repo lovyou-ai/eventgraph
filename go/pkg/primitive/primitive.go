@@ -87,6 +87,7 @@ type AddEdge struct {
 	EdgeType event.EdgeType
 	Weight   types.Weight
 	Scope    types.Option[types.DomainScope]
+	Causes   []types.EventID // optional — if empty, engine uses chain head
 }
 
 func (m AddEdge) Accept(v MutationVisitor) { v.VisitAddEdge(m) }

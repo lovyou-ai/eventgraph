@@ -309,6 +309,7 @@ func (g *Grammar) Consent(
 }
 
 // Sever removes a subscription, channel, or delegation via edge supersession. (Operation 14)
+// Only a party to the edge (From or To) can sever it.
 func (g *Grammar) Sever(
 	ctx context.Context,
 	source types.ActorID,
@@ -317,6 +318,22 @@ func (g *Grammar) Sever(
 	conversationID types.ConversationID,
 	signer event.Signer,
 ) (event.Event, error) {
+	// Verify the edge exists and the actor is a party to it
+	edgeEventID, err := types.NewEventID(previousEdge.Value())
+	if err != nil {
+		return event.Event{}, fmt.Errorf("sever: invalid edge ID: %w", err)
+	}
+	edgeEv, err := g.graph.Store().Get(edgeEventID)
+	if err != nil {
+		return event.Event{}, fmt.Errorf("sever: edge not found: %w", err)
+	}
+	ec, ok := edgeEv.Content().(event.EdgeCreatedContent)
+	if !ok {
+		return event.Event{}, fmt.Errorf("sever: event %s is not an edge.created event", previousEdge.Value())
+	}
+	if ec.From != source && ec.To != source {
+		return event.Event{}, fmt.Errorf("sever: actor %s is not a party to edge %s (from=%s, to=%s)", source.Value(), previousEdge.Value(), ec.From.Value(), ec.To.Value())
+	}
 	return g.graph.Record(
 		event.EventTypeEdgeSuperseded, source,
 		event.EdgeSupersededContent{

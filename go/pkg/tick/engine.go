@@ -122,16 +122,21 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 			break
 		}
 
-		totalMutations += len(waveMutations)
-
 		// Eagerly persist AddEvent mutations so subsequent waves get real events.
 		// Non-AddEvent mutations are deferred to end of tick.
 		newEvents, deferred, errs := e.applyAndExtractNewEvents(waveMutations)
 		deferredMutations = append(deferredMutations, deferred...)
 		allMutationErrors = append(allMutationErrors, errs...)
 
+		// Count only successfully applied mutations (persisted events + deferred)
+		totalMutations += len(newEvents) + len(deferred)
+
 		if len(newEvents) == 0 {
-			quiesced = true
+			// Only mark as quiesced if there were no errors — if all AddEvent
+			// mutations failed, this is an error state, not stable quiescence.
+			if len(errs) == 0 {
+				quiesced = true
+			}
 			break
 		}
 
@@ -460,7 +465,7 @@ type mutationApplier struct {
 func (a *mutationApplier) VisitAddEvent(_ primitive.AddEvent) {
 	// AddEvent mutations are handled eagerly by applyAndExtractNewEvents between waves.
 	// If this is reached, it means the split logic has a bug.
-	panic("unreachable: AddEvent should have been handled by applyAndExtractNewEvents")
+	a.err = fmt.Errorf("invariant violation: AddEvent reached applyMutations (should have been handled by applyAndExtractNewEvents)")
 }
 
 func (a *mutationApplier) VisitAddEdge(m primitive.AddEdge) {
@@ -473,17 +478,20 @@ func (a *mutationApplier) VisitAddEdge(m primitive.AddEdge) {
 		Scope:     m.Scope,
 	}
 
-	// Need a cause — use head of chain (causality invariant: no event without causes)
-	headOpt, err := a.engine.store.Head()
-	if err != nil {
-		a.err = err
-		return
+	// Use declared causes if provided, otherwise fall back to chain head.
+	causes := m.Causes
+	if len(causes) == 0 {
+		headOpt, err := a.engine.store.Head()
+		if err != nil {
+			a.err = err
+			return
+		}
+		if !headOpt.IsSome() {
+			a.err = fmt.Errorf("cannot create edge event: store has no head event (causality invariant)")
+			return
+		}
+		causes = []types.EventID{headOpt.Unwrap().ID()}
 	}
-	if !headOpt.IsSome() {
-		a.err = fmt.Errorf("cannot create edge event: store has no head event (causality invariant)")
-		return
-	}
-	causes := []types.EventID{headOpt.Unwrap().ID()}
 
 	ev, err := a.engine.factory.Create(
 		event.EventTypeEdgeCreated, m.From, content, causes,
