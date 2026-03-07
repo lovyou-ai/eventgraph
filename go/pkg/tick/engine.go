@@ -140,7 +140,9 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 		copy(pendingCopy, waveEvents)
 		snapshot.PendingEvents = pendingCopy
 
-		// Refresh RecentEvents so subsequent waves see events persisted this tick
+		// Refresh snapshot so subsequent waves see state changes from this wave
+		snapshot.Primitives = e.registry.AllStates()
+
 		recentPage, _ := e.store.Recent(100, types.None[types.Cursor]())
 		if recentPage.Items() != nil {
 			recentCopy := make([]event.Event, len(recentPage.Items()))

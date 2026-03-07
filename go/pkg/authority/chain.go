@@ -52,23 +52,10 @@ func (c *DelegationChain) Evaluate(ctx context.Context, a actor.IActor, action s
 	defer c.mu.RUnlock()
 
 	policy := c.findPolicy(action)
+	// walkChain always returns at least one AuthorityLink.
 	chain, err := c.walkChain(ctx, a.ID(), policy, nil, 0)
 	if err != nil {
 		return AuthorityResult{}, err
-	}
-
-	if len(chain) == 0 {
-		// No delegation chain — use direct authority
-		link := event.AuthorityLink{
-			Actor:  a.ID(),
-			Level:  policy.Level,
-			Weight: types.MustScore(1.0),
-		}
-		return AuthorityResult{
-			Level:  policy.Level,
-			Weight: types.MustScore(1.0),
-			Chain:  []event.AuthorityLink{link},
-		}, nil
 	}
 
 	// The final weight is the product of all weights in the chain
@@ -93,18 +80,10 @@ func (c *DelegationChain) Chain(ctx context.Context, a actor.IActor, action stri
 	defer c.mu.RUnlock()
 
 	policy := c.findPolicy(action)
+	// walkChain always returns at least one AuthorityLink.
 	chain, err := c.walkChain(ctx, a.ID(), policy, nil, 0)
 	if err != nil {
 		return nil, err
-	}
-	if len(chain) == 0 {
-		return []event.AuthorityLink{
-			{
-				Actor:  a.ID(),
-				Level:  event.AuthorityLevelNotification,
-				Weight: types.MustScore(1.0),
-			},
-		}, nil
 	}
 	return chain, nil
 }

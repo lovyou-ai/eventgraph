@@ -130,7 +130,7 @@ func matchesAction(pattern, action string) bool {
 	}
 	if len(pattern) > 0 && pattern[len(pattern)-1] == '*' {
 		prefix := pattern[:len(pattern)-1]
-		return len(action) >= len(prefix) && action[:len(prefix)] == prefix
+		return len(action) > len(prefix) && action[:len(prefix)] == prefix
 	}
 	return pattern == action
 }

@@ -34,16 +34,12 @@ type PrimitiveState struct {
 	LastTick   types.Tick
 }
 
-// State returns a defensive copy of the primitive's key-value state.
+// State returns a deep defensive copy of the primitive's key-value state.
 func (ps PrimitiveState) State() map[string]any {
 	if ps.state == nil {
 		return nil
 	}
-	cp := make(map[string]any, len(ps.state))
-	for k, v := range ps.state {
-		cp[k] = v
-	}
-	return cp
+	return deepCopyState(ps.state)
 }
 
 // Snapshot is the frozen, read-only view passed to primitives during processing.

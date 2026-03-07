@@ -127,6 +127,14 @@ func (e *RateLimitExceededError) Error() string {
 }
 func (e *RateLimitExceededError) storeError() {}
 
+// InvalidCursorError indicates the cursor points to a non-existent position.
+type InvalidCursorError struct{ Cursor string }
+
+func (e *InvalidCursorError) Error() string {
+	return fmt.Sprintf("invalid cursor: %q", e.Cursor)
+}
+func (e *InvalidCursorError) storeError() {}
+
 // StoreUnavailableError indicates the backing store is unavailable.
 type StoreUnavailableError struct{ Reason string }
 
@@ -149,6 +157,7 @@ type StoreErrorVisitor interface {
 	VisitActorSuspended(*ActorSuspendedError)
 	VisitActorMemorial(*ActorMemorialError)
 	VisitRateLimitExceeded(*RateLimitExceededError)
+	VisitInvalidCursor(*InvalidCursorError)
 	VisitStoreUnavailable(*StoreUnavailableError)
 }
 
@@ -170,4 +179,5 @@ func (e *SignatureInvalidError) Accept(v StoreErrorVisitor)        { v.VisitSign
 func (e *ActorSuspendedError) Accept(v StoreErrorVisitor)          { v.VisitActorSuspended(e) }
 func (e *ActorMemorialError) Accept(v StoreErrorVisitor)           { v.VisitActorMemorial(e) }
 func (e *RateLimitExceededError) Accept(v StoreErrorVisitor)       { v.VisitRateLimitExceeded(e) }
+func (e *InvalidCursorError) Accept(v StoreErrorVisitor)           { v.VisitInvalidCursor(e) }
 func (e *StoreUnavailableError) Accept(v StoreErrorVisitor)        { v.VisitStoreUnavailable(e) }

@@ -84,6 +84,7 @@ type EdgeMetadataVisitor interface {
 	VisitReference(ReferenceEdgeMetadata)
 	VisitChannel(ChannelEdgeMetadata)
 	VisitAnnotation(AnnotationEdgeMetadata)
+	VisitAcknowledgement(AcknowledgementEdgeMetadata)
 }
 
 // TrustEdgeMetadata carries metadata for trust edges.
@@ -172,6 +173,14 @@ type AnnotationEdgeMetadata struct {
 
 func (m AnnotationEdgeMetadata) EdgeTypeName() EdgeType           { return EdgeTypeAnnotation }
 func (m AnnotationEdgeMetadata) Accept(v EdgeMetadataVisitor) { v.VisitAnnotation(m) }
+
+// AcknowledgementEdgeMetadata carries metadata for acknowledgement edges.
+type AcknowledgementEdgeMetadata struct {
+	Target types.EventID
+}
+
+func (m AcknowledgementEdgeMetadata) EdgeTypeName() EdgeType           { return EdgeTypeAcknowledgement }
+func (m AcknowledgementEdgeMetadata) Accept(v EdgeMetadataVisitor) { v.VisitAcknowledgement(m) }
 
 // CGER represents a cross-graph event reference.
 type CGER struct {

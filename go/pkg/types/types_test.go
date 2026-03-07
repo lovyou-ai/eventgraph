@@ -224,7 +224,7 @@ func TestScore_Valid(t *testing.T) {
 
 func TestScore_Invalid(t *testing.T) {
 	t.Parallel()
-	cases := []float64{-0.1, 1.1, math.NaN(), math.Inf(1)}
+	cases := []float64{-0.1, 1.1, math.NaN(), math.Inf(1), math.Inf(-1)}
 	for _, v := range cases {
 		_, err := NewScore(v)
 		if err == nil {

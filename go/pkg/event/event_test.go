@@ -17,6 +17,7 @@ func TestEdgeTypeIsValid(t *testing.T) {
 		EdgeTypeTrust, EdgeTypeAuthority, EdgeTypeSubscription,
 		EdgeTypeEndorsement, EdgeTypeDelegation, EdgeTypeCausation,
 		EdgeTypeReference, EdgeTypeChannel, EdgeTypeAnnotation,
+		EdgeTypeAcknowledgement,
 	}
 	for _, et := range valid {
 		if !et.IsValid() {
@@ -447,13 +448,15 @@ func (c *edgeMetadataCollector) VisitDelegation(DelegationEdgeMetadata)     { c.
 func (c *edgeMetadataCollector) VisitCausation(CausationEdgeMetadata)       { c.visited = EdgeTypeCausation }
 func (c *edgeMetadataCollector) VisitReference(ReferenceEdgeMetadata)       { c.visited = EdgeTypeReference }
 func (c *edgeMetadataCollector) VisitChannel(ChannelEdgeMetadata)           { c.visited = EdgeTypeChannel }
-func (c *edgeMetadataCollector) VisitAnnotation(AnnotationEdgeMetadata)     { c.visited = EdgeTypeAnnotation }
+func (c *edgeMetadataCollector) VisitAnnotation(AnnotationEdgeMetadata)             { c.visited = EdgeTypeAnnotation }
+func (c *edgeMetadataCollector) VisitAcknowledgement(AcknowledgementEdgeMetadata)   { c.visited = EdgeTypeAcknowledgement }
 
 func TestEdgeMetadataVisitorDispatch(t *testing.T) {
 	metadatas := []EdgeMetadata{
 		TrustEdgeMetadata{}, AuthorityEdgeMetadata{}, SubscriptionEdgeMetadata{},
 		EndorsementEdgeMetadata{}, DelegationEdgeMetadata{}, CausationEdgeMetadata{},
 		ReferenceEdgeMetadata{}, ChannelEdgeMetadata{}, AnnotationEdgeMetadata{},
+		AcknowledgementEdgeMetadata{},
 	}
 	for _, md := range metadatas {
 		c := &edgeMetadataCollector{}

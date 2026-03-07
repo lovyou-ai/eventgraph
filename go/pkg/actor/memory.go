@@ -121,7 +121,7 @@ func (s *InMemoryActorStore) List(filter ActorFilter) (types.Page[IActor], error
 		}
 		if !found {
 			return types.NewPage[IActor](nil, types.None[types.Cursor](), false),
-				fmt.Errorf("invalid cursor: actor %q not found", cursor.Value())
+				&store.InvalidCursorError{Cursor: cursor.Value()}
 		}
 	}
 

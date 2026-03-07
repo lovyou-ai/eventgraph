@@ -3,7 +3,6 @@
 // Usage:
 //
 //	eg bootstrap              — Initialize a new event graph
-//	eg record <type> <json>   — Record an event
 //	eg get <event-id>         — Get an event by ID
 //	eg recent [limit]         — Show recent events
 //	eg count                  — Show event count

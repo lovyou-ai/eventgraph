@@ -186,10 +186,19 @@ func (m *DefaultTrustModel) Update(_ context.Context, a actor.IActor, evidence e
 		state.trend = types.MustWeight(math.Max(-1, state.trend.Value()-0.1))
 	}
 
-	// Track evidence
-	state.evidence = append(state.evidence, evidence.ID())
-	if len(state.evidence) > 100 {
-		state.evidence = state.evidence[len(state.evidence)-100:]
+	// Track evidence (deduplicate)
+	alreadyTracked := false
+	for _, id := range state.evidence {
+		if id == evidence.ID() {
+			alreadyTracked = true
+			break
+		}
+	}
+	if !alreadyTracked {
+		state.evidence = append(state.evidence, evidence.ID())
+		if len(state.evidence) > 100 {
+			state.evidence = state.evidence[len(state.evidence)-100:]
+		}
 	}
 
 	state.lastUpdated = types.Now()
@@ -234,9 +243,19 @@ func (m *DefaultTrustModel) UpdateBetween(_ context.Context, from actor.IActor, 
 		state.trend = types.MustWeight(math.Max(-1, state.trend.Value()-0.1))
 	}
 
-	state.evidence = append(state.evidence, evidence.ID())
-	if len(state.evidence) > 100 {
-		state.evidence = state.evidence[len(state.evidence)-100:]
+	// Track evidence (deduplicate)
+	alreadyTracked := false
+	for _, id := range state.evidence {
+		if id == evidence.ID() {
+			alreadyTracked = true
+			break
+		}
+	}
+	if !alreadyTracked {
+		state.evidence = append(state.evidence, evidence.ID())
+		if len(state.evidence) > 100 {
+			state.evidence = state.evidence[len(state.evidence)-100:]
+		}
 	}
 
 	state.lastUpdated = types.Now()

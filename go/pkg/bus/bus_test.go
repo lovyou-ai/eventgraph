@@ -372,6 +372,59 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 	wg.Wait()
 }
 
+func TestLastPanic(t *testing.T) {
+	s := store.NewInMemoryStore()
+	b := bus.NewEventBus(s, 16)
+	defer b.Close()
+
+	delivered := make(chan struct{})
+	pattern := types.MustSubscriptionPattern("*")
+	id := b.Subscribe(pattern, func(ev event.Event) {
+		defer func() { delivered <- struct{}{} }()
+		panic("test panic")
+	})
+
+	ev := makeTestEvent(t, s, event.EventTypeTrustUpdated)
+	b.Publish(ev)
+
+	// Wait for the panicking handler to run
+	select {
+	case <-delivered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for panicking handler")
+	}
+
+	// Give recovery a moment to store the panic value
+	time.Sleep(50 * time.Millisecond)
+
+	p := b.LastPanic(id)
+	if p == nil {
+		t.Fatal("expected non-nil LastPanic after handler panic")
+	}
+	if p != "test panic" {
+		t.Errorf("LastPanic = %v, want %q", p, "test panic")
+	}
+
+	// Verify the goroutine survives — publish another event
+	b.Publish(ev)
+	select {
+	case <-delivered:
+	case <-time.After(time.Second):
+		t.Fatal("subscriber goroutine did not survive after panic")
+	}
+}
+
+func TestLastPanicNonexistent(t *testing.T) {
+	s := store.NewInMemoryStore()
+	b := bus.NewEventBus(s, 16)
+	defer b.Close()
+
+	p := b.LastPanic(bus.SubscriptionID(9999))
+	if p != nil {
+		t.Errorf("expected nil for nonexistent subscription, got %v", p)
+	}
+}
+
 func TestSubscriptionIDsAreUnique(t *testing.T) {
 	s := store.NewInMemoryStore()
 	b := bus.NewEventBus(s, 16)

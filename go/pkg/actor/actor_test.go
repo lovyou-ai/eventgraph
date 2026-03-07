@@ -244,6 +244,20 @@ func TestReactivateNotFound(t *testing.T) {
 	}
 }
 
+func TestMemorialReactivateIsError(t *testing.T) {
+	s := actor.NewInMemoryActorStore()
+	pk := testPublicKey(1)
+	a, _ := s.Register(pk, "Alice", event.ActorTypeHuman)
+	reason := types.MustEventID("019462a0-0000-7000-8000-000000000001")
+
+	s.Memorial(a.ID(), reason)
+
+	_, err := s.Reactivate(a.ID(), reason)
+	if err == nil {
+		t.Fatal("expected error reactivating a memorialised actor")
+	}
+}
+
 func TestReactivateFromActiveIsError(t *testing.T) {
 	s := actor.NewInMemoryActorStore()
 	pk := testPublicKey(1)

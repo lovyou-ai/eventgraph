@@ -127,6 +127,7 @@ func (c *storeErrorCollector) VisitActorSuspended(*store.ActorSuspendedError)   
 func (c *storeErrorCollector) VisitActorMemorial(*store.ActorMemorialError)                   { c.visited = "ActorMemorial" }
 func (c *storeErrorCollector) VisitRateLimitExceeded(*store.RateLimitExceededError)            { c.visited = "RateLimitExceeded" }
 func (c *storeErrorCollector) VisitStoreUnavailable(*store.StoreUnavailableError)              { c.visited = "StoreUnavailable" }
+func (c *storeErrorCollector) VisitInvalidCursor(*store.InvalidCursorError)                    { c.visited = "InvalidCursor" }
 
 func TestStoreErrorVisitor(t *testing.T) {
 	eventID := types.MustEventID("019462a0-0000-7000-8000-000000000001")
@@ -150,6 +151,7 @@ func TestStoreErrorVisitor(t *testing.T) {
 		{&store.ActorMemorialError{ID: actorID}, "ActorMemorial"},
 		{&store.RateLimitExceededError{Actor: actorID, Limit: 10, Window: "1m"}, "RateLimitExceeded"},
 		{&store.StoreUnavailableError{Reason: "test"}, "StoreUnavailable"},
+		{&store.InvalidCursorError{Cursor: "bad"}, "InvalidCursor"},
 	}
 
 	for _, tt := range tests {

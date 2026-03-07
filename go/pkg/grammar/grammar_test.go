@@ -455,10 +455,15 @@ func TestAllOperationsAreOnChain(t *testing.T) {
 	gr.Delegate(ctx, actorID, targetActor, types.MustDomainScope("admin"), types.MustWeight(0.5), bootstrap.ID(), convID, signer)
 	gr.Consent(ctx, actorID, targetActor, "agree", types.MustDomainScope("scope"), bootstrap.ID(), convID, signer)
 
-	// 1 bootstrap + 15 grammar operations = 16 events
+	// Sever (Operation 15): sever a subscription edge
+	subEv, _ := gr.Subscribe(ctx, actorID, targetActor, types.None[types.DomainScope](), bootstrap.ID(), convID, signer)
+	edgeID := types.MustEdgeID(subEv.ID().Value())
+	gr.Sever(ctx, actorID, edgeID, subEv.ID(), convID, signer)
+
+	// 1 bootstrap + 15 grammar ops + 1 extra Subscribe (for Sever target) + 1 Sever = 18 events
 	count, _ := g.Store().Count()
-	if count != 16 {
-		t.Errorf("Count = %d, want 16", count)
+	if count != 18 {
+		t.Errorf("Count = %d, want 18", count)
 	}
 
 	// Verify chain integrity
