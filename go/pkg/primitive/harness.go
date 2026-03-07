@@ -79,6 +79,12 @@ func (h *Harness) Process(p Primitive, events []event.Event) ([]Mutation, error)
 	return mutations, nil
 }
 
+// Reset clears accumulated mutations, allowing per-invocation assertions.
+// Call between Process invocations to isolate each call's output.
+func (h *Harness) Reset() {
+	h.mutations = nil
+}
+
 // Mutations returns all accumulated mutations from Process calls.
 func (h *Harness) Mutations() []Mutation {
 	return h.mutations

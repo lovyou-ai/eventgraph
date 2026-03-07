@@ -138,6 +138,20 @@ func (r *Registry) SetLifecycle(id types.PrimitiveID, state types.LifecycleState
 	return nil
 }
 
+// ForceLifecycle sets a primitive's lifecycle state unconditionally, bypassing
+// the state machine transition rules. Only for recovery from stuck states
+// (e.g., Emitting→Active failure). Normal code must use SetLifecycle.
+func (r *Registry) ForceLifecycle(id types.PrimitiveID, state types.LifecycleState) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ms, ok := r.states[id]
+	if !ok {
+		return fmt.Errorf("primitive %q not found", id.Value())
+	}
+	ms.lifecycle = state
+	return nil
+}
+
 // SetActivation updates a primitive's activation level.
 func (r *Registry) SetActivation(id types.PrimitiveID, level types.Activation) error {
 	r.mu.Lock()

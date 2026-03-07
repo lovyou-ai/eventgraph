@@ -230,6 +230,10 @@ func (s *InMemoryStore) Since(afterID types.EventID, limit int) (types.Page[even
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	if limit <= 0 {
+		limit = 100
+	}
+
 	startIdx, ok := s.byID[afterID]
 	if !ok {
 		return types.Page[event.Event]{}, &EventNotFoundError{ID: afterID}

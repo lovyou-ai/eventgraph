@@ -322,7 +322,11 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 					if err := e.registry.SetLifecycle(pid, types.LifecycleEmitting); err != nil {
 						lcErr = fmt.Errorf("lifecycle Processing→Emitting: %w", err)
 					} else if err := e.registry.SetLifecycle(pid, types.LifecycleActive); err != nil {
-						lcErr = fmt.Errorf("lifecycle Emitting→Active: %w", err)
+						// Emitting→Active failed — primitive is stuck in Emitting with no
+						// valid exit. Force-reset to Active to prevent permanent lockout.
+						// This is a defensive recovery; the error is still reported.
+						_ = e.registry.ForceLifecycle(pid, types.LifecycleActive)
+						lcErr = fmt.Errorf("lifecycle Emitting→Active: %w (force-recovered)", err)
 					}
 				} else {
 					if err := e.registry.SetLifecycle(pid, types.LifecycleActive); err != nil {

@@ -164,23 +164,28 @@ func evaluateSemanticFromSnapshot(ctx context.Context, snap semanticSnapshot, in
 }
 
 func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path []event.PathStep, tree *DecisionTree, intelligence types.Option[IIntelligence]) (TreeResult, error) {
+	// Capture immutable leaf fields under the lock to establish a happens-before
+	// edge per the Go memory model. These fields are set at construction and never
+	// modified, but concurrent leaf.mu writes (Stats) require synchronization.
 	leaf.mu.Lock()
 	leaf.Stats.HitCount++
+	needsLLM := leaf.NeedsLLM
+	outcome := leaf.Outcome
+	confidence := leaf.Confidence
 	leaf.mu.Unlock()
 
-	if !leaf.NeedsLLM {
+	if !needsLLM {
 		tree.statsMu.Lock()
 		tree.Stats.TotalHits++
 		tree.Stats.MechanicalHits++
 		tree.statsMu.Unlock()
 
-		if !leaf.Outcome.IsSome() {
+		if !outcome.IsSome() {
 			return TreeResult{}, fmt.Errorf("mechanical leaf has no outcome (NeedsLLM=false but Outcome is None)")
 		}
-		outcome := leaf.Outcome.Unwrap()
 		return TreeResult{
-			Outcome:    outcome,
-			Confidence: leaf.Confidence,
+			Outcome:    outcome.Unwrap(),
+			Confidence: confidence,
 			Path:       path,
 			UsedLLM:    false,
 		}, nil
@@ -207,7 +212,7 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 		return TreeResult{}, err
 	}
 
-	outcome := parseOutcome(resp.Content())
+	llmOutcome := parseOutcome(resp.Content())
 
 	tree.statsMu.Lock()
 	tree.Stats.TotalTokens += resp.TokensUsed()
@@ -215,7 +220,7 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 
 	leaf.mu.Lock()
 	leaf.Stats.ResponseHistory = append(leaf.Stats.ResponseHistory, ResponseRecord{
-		Output:     outcome,
+		Output:     llmOutcome,
 		Confidence: resp.Confidence(),
 	})
 	if len(leaf.Stats.ResponseHistory) > maxResponseHistory {
@@ -226,7 +231,7 @@ func evaluateLeaf(ctx context.Context, leaf *LeafNode, input EvaluateInput, path
 	leaf.mu.Unlock()
 
 	return TreeResult{
-		Outcome:    outcome,
+		Outcome:    llmOutcome,
 		Confidence: resp.Confidence(),
 		Path:       path,
 		UsedLLM:    true,
