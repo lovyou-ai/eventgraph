@@ -128,24 +128,24 @@ The mechanical-to-intelligent continuum.
 
 The 45 foundation primitives in 11 groups. Each primitive needs: implementation, tests, documentation.
 
-### Group 0 — Core
-- [ ] Event primitive
-- [ ] EventStore primitive
-- [ ] Clock primitive
-- [ ] Hash primitive
-- [ ] Self primitive (identity + routing)
+### Group 0 — Core — DONE
+- [x] Event primitive — validates hash integrity and causal links
+- [x] EventStore primitive — tracks chain head and event count
+- [x] Clock primitive — tick counting and timestamps
+- [x] Hash primitive — SHA-256 chain verification
+- [x] Self primitive — system identity and primitive registry tracking
 
-### Group 1 — Causality
-- [ ] CausalLink primitive
-- [ ] Ancestry primitive
-- [ ] Descendancy primitive
-- [ ] FirstCause primitive
+### Group 1 — Causality — DONE
+- [x] CausalLink primitive — validates causal edges, tracks valid/invalid links
+- [x] Ancestry primitive — traverses causal chains upward via Store
+- [x] Descendancy primitive — traverses causal chains downward via Store
+- [x] FirstCause primitive — walks to root cause (bootstrap event)
 
-### Group 2 — Identity
-- [ ] ActorID primitive
-- [ ] ActorRegistry primitive
-- [ ] Signature primitive
-- [ ] Verify primitive
+### Group 2 — Identity — DONE
+- [x] ActorID primitive — tracks actor registrations
+- [x] ActorRegistry primitive — tracks actor lifecycle (active/suspended/memorial)
+- [x] Signature primitive — tracks Ed25519 signature presence
+- [x] Verify primitive — verifies signature format, tracks verified/failed counts
 
 ### Group 3 — Expectations
 - [ ] Expectation primitive
