@@ -1,6 +1,8 @@
 package event
 
 import (
+	"encoding/json"
+
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
@@ -144,6 +146,46 @@ func NewTrustMetrics(
 		lastUpdated: lastUpdated,
 		decayRate:   decayRate,
 	}
+}
+
+// trustMetricsJSON is the serialization form for TrustMetrics.
+// TrustMetrics has all unexported fields (immutability), so we need explicit JSON support.
+type trustMetricsJSON struct {
+	Actor       types.ActorID                      `json:"Actor"`
+	Overall     types.Score                        `json:"Overall"`
+	ByDomain    map[types.DomainScope]types.Score  `json:"ByDomain,omitempty"`
+	Confidence  types.Score                        `json:"Confidence"`
+	Trend       types.Weight                       `json:"Trend"`
+	Evidence    []types.EventID                    `json:"Evidence,omitempty"`
+	LastUpdated types.Timestamp                    `json:"LastUpdated"`
+	DecayRate   types.Score                        `json:"DecayRate"`
+}
+
+// MarshalJSON serializes TrustMetrics to JSON with all fields exposed.
+func (m TrustMetrics) MarshalJSON() ([]byte, error) {
+	return json.Marshal(trustMetricsJSON{
+		Actor:       m.actor,
+		Overall:     m.overall,
+		ByDomain:    m.byDomain,
+		Confidence:  m.confidence,
+		Trend:       m.trend,
+		Evidence:    m.evidence,
+		LastUpdated: m.lastUpdated,
+		DecayRate:   m.decayRate,
+	})
+}
+
+// UnmarshalJSON deserializes TrustMetrics from JSON.
+func (m *TrustMetrics) UnmarshalJSON(b []byte) error {
+	var raw trustMetricsJSON
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*m = NewTrustMetrics(
+		raw.Actor, raw.Overall, raw.ByDomain, raw.Confidence,
+		raw.Trend, raw.Evidence, raw.LastUpdated, raw.DecayRate,
+	)
+	return nil
 }
 
 func (m TrustMetrics) Actor() types.ActorID   { return m.actor }

@@ -174,13 +174,20 @@ func (b *EventBus) Close() error {
 	for _, sub := range subs {
 		sub.closeOnce.Do(func() { close(sub.buffer) })
 	}
-	// Wait for all subscriber goroutines to drain and exit, with a timeout
-	// to prevent deadlock if a handler blocks indefinitely.
-	timer := time.NewTimer(closeTimeout)
-	defer timer.Stop()
+	// Wait for all subscriber goroutines to drain and exit, with a shared
+	// deadline to prevent deadlock if a handler blocks indefinitely.
+	// The deadline is global — remaining time is recalculated for each subscriber
+	// so that one slow subscriber doesn't consume the entire budget.
+	deadline := time.Now().Add(closeTimeout)
 	for _, sub := range subs {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return fmt.Errorf("eventbus: close timed out after %v waiting for subscriber goroutines", closeTimeout)
+		}
+		timer := time.NewTimer(remaining)
 		select {
 		case <-sub.done:
+			timer.Stop()
 		case <-timer.C:
 			return fmt.Errorf("eventbus: close timed out after %v waiting for subscriber goroutines", closeTimeout)
 		}

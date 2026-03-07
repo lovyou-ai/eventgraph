@@ -12,7 +12,7 @@ type Score struct{ value float64 }
 
 // NewScore creates a Score. Returns an error if v is outside [0.0, 1.0].
 func NewScore(v float64) (Score, error) {
-	if math.IsNaN(v) || v < 0.0 || v > 1.0 {
+	if math.IsNaN(v) || v < 0.0 || v > 1.0 || math.Signbit(v) {
 		return Score{}, &OutOfRangeError{Field: "Score", Value: v, Min: 0.0, Max: 1.0}
 	}
 	return Score{value: v}, nil
@@ -98,7 +98,7 @@ type Activation struct{ value float64 }
 
 // NewActivation creates an Activation. Returns an error if v is outside [0.0, 1.0].
 func NewActivation(v float64) (Activation, error) {
-	if math.IsNaN(v) || v < 0.0 || v > 1.0 {
+	if math.IsNaN(v) || v < 0.0 || v > 1.0 || math.Signbit(v) {
 		return Activation{}, &OutOfRangeError{Field: "Activation", Value: v, Min: 0.0, Max: 1.0}
 	}
 	return Activation{value: v}, nil
