@@ -144,6 +144,20 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 		s.edges = append(s.edges, edge)
 	}
 
+	// Handle edge supersession: remove the superseded edge from the active set.
+	if ev.Type() == event.EventTypeEdgeSuperseded {
+		if ec, ok := ev.Content().(event.EdgeSupersededContent); ok {
+			prevID := ec.PreviousEdge.Value()
+			for i, e := range s.edges {
+				if e.ID().Value() == prevID {
+					s.edges[i] = s.edges[len(s.edges)-1]
+					s.edges = s.edges[:len(s.edges)-1]
+					break
+				}
+			}
+		}
+	}
+
 	return ev, nil
 }
 

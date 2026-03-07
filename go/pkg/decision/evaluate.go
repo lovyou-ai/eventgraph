@@ -43,10 +43,18 @@ func Evaluate(ctx context.Context, tree *DecisionTree, input EvaluateInput, inte
 		switch n := node.(type) {
 		case *InternalNode:
 			if n.Condition.Operator == event.ConditionOperatorSemantic {
-				// Snapshot node data and release lock before LLM I/O.
+				// Snapshot node data while lock is held, then release before LLM I/O.
 				// evaluateSemantic may call intel.Reason which is unbounded I/O.
+				// Concurrent Evolve can replace Branches[i].Child and Default via
+				// evolveNode, so we must not read from n after releasing the lock.
+				snap := semanticSnapshot{
+					condition: n.Condition,
+					branches:  make([]Branch, len(n.Branches)),
+					dflt:      n.Default,
+				}
+				copy(snap.branches, n.Branches)
 				tree.mu.RUnlock()
-				next, step, err := evaluateSemantic(ctx, n, input, intelligence)
+				next, step, err := evaluateSemanticFromSnapshot(ctx, snap, input, intelligence)
 				if err != nil {
 					return TreeResult{}, err
 				}
@@ -103,17 +111,26 @@ func evaluateMechanical(n *InternalNode, input EvaluateInput) (DecisionNode, eve
 	return n.Default, step, nil
 }
 
-func evaluateSemantic(ctx context.Context, n *InternalNode, input EvaluateInput, intelligence types.Option[IIntelligence]) (DecisionNode, event.PathStep, error) {
+// semanticSnapshot holds a copy of InternalNode fields needed by semantic
+// evaluation. Captured while the tree read lock is held so that evaluateSemantic
+// does not race with concurrent Evolve calls that replace child nodes.
+type semanticSnapshot struct {
+	condition event.Condition
+	branches  []Branch
+	dflt      DecisionNode
+}
+
+func evaluateSemanticFromSnapshot(ctx context.Context, snap semanticSnapshot, input EvaluateInput, intelligence types.Option[IIntelligence]) (DecisionNode, event.PathStep, error) {
 	defaultStep := event.PathStep{
-		Condition: n.Condition,
+		Condition: snap.condition,
 		Branch:    event.MatchValue{String: types.Some("default")},
 	}
 
 	returnDefault := func() (DecisionNode, event.PathStep, error) {
-		if n.Default == nil {
-			return nil, event.PathStep{}, fmt.Errorf("no branch matched and no default node set for semantic condition on field %q", n.Condition.Field.Value())
+		if snap.dflt == nil {
+			return nil, event.PathStep{}, fmt.Errorf("no branch matched and no default node set for semantic condition on field %q", snap.condition.Field.Value())
 		}
-		return n.Default, defaultStep, nil
+		return snap.dflt, defaultStep, nil
 	}
 
 	if !intelligence.IsSome() {
@@ -122,8 +139,8 @@ func evaluateSemantic(ctx context.Context, n *InternalNode, input EvaluateInput,
 
 	intel := intelligence.Unwrap()
 	prompt := ""
-	if n.Condition.Prompt.IsSome() {
-		prompt = n.Condition.Prompt.Unwrap()
+	if snap.condition.Prompt.IsSome() {
+		prompt = snap.condition.Prompt.Unwrap()
 	}
 
 	resp, err := intel.Reason(ctx, prompt, input.History)
@@ -135,11 +152,11 @@ func evaluateSemantic(ctx context.Context, n *InternalNode, input EvaluateInput,
 	// Check if response confidence meets threshold.
 	// Current limitation: semantic nodes are binary (confident → branch[0], else → default).
 	// Future: match resp.Content() against branch match values for multi-way semantic routing.
-	if n.Condition.Threshold.IsSome() {
-		threshold := n.Condition.Threshold.Unwrap()
-		if resp.Confidence().Value() >= threshold.Value() && len(n.Branches) > 0 {
-			branch := n.Branches[0]
-			step := event.PathStep{Condition: n.Condition, Branch: branch.Match}
+	if snap.condition.Threshold.IsSome() {
+		threshold := snap.condition.Threshold.Unwrap()
+		if resp.Confidence().Value() >= threshold.Value() && len(snap.branches) > 0 {
+			branch := snap.branches[0]
+			step := event.PathStep{Condition: snap.condition, Branch: branch.Match}
 			return branch.Child, step, nil
 		}
 	}

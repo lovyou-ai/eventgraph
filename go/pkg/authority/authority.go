@@ -90,12 +90,15 @@ func (c *DefaultAuthorityChain) Evaluate(ctx context.Context, a actor.IActor, ac
 	}, nil
 }
 
-func (c *DefaultAuthorityChain) Chain(_ context.Context, a actor.IActor, _ string) ([]event.AuthorityLink, error) {
-	// Flat model: chain is just the actor
+func (c *DefaultAuthorityChain) Chain(_ context.Context, a actor.IActor, action string) ([]event.AuthorityLink, error) {
+	c.mu.RLock()
+	policy := c.findPolicy(action)
+	c.mu.RUnlock()
+
 	return []event.AuthorityLink{
 		{
 			Actor:  a.ID(),
-			Level:  event.AuthorityLevelNotification,
+			Level:  policy.Level,
 			Weight: types.MustScore(1.0),
 		},
 	}, nil

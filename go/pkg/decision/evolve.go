@@ -66,6 +66,14 @@ func DetectPattern(stats LeafStats, config EvolutionConfig) PatternResult {
 		}
 	}
 
+	// Detect ties — do not evolve on ambiguous data where two outcomes
+	// share the same count, since Go map iteration is non-deterministic.
+	for outcome, count := range counts {
+		if outcome != dominant && count == maxCount {
+			return PatternResult{SampleCount: total}
+		}
+	}
+
 	freq := float64(maxCount) / float64(total)
 	avgConf := confidenceSum[dominant] / float64(maxCount)
 

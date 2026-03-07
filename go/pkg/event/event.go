@@ -252,7 +252,7 @@ func writeCanonicalValue(sb *strings.Builder, v any) {
 // formatCanonicalNumber formats a float64 per canonical form rules:
 // no trailing zeros, no leading zeros (except 0.x), no + prefix.
 func formatCanonicalNumber(f float64) string {
-	if f == float64(int64(f)) && f >= -1e15 && f <= 1e15 {
+	if f >= -1e15 && f <= 1e15 && f == float64(int64(f)) {
 		return fmt.Sprintf("%d", int64(f))
 	}
 	// Use strconv.FormatFloat with 'f' format and full precision for cross-language

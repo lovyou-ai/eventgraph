@@ -125,8 +125,14 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 		// Eagerly persist AddEvent mutations so subsequent waves get real events.
 		// Non-AddEvent mutations are deferred to end of tick.
 		newEvents, deferred, errs := e.applyAndExtractNewEvents(waveMutations)
-		deferredMutations = append(deferredMutations, deferred...)
 		allMutationErrors = append(allMutationErrors, errs...)
+		// Only keep deferred mutations if no AddEvent mutations failed.
+		// Deferred mutations (AddEdge, etc.) may reference cause IDs from
+		// failed AddEvent mutations in the same wave, which would violate
+		// the causality invariant when applied.
+		if len(errs) == 0 {
+			deferredMutations = append(deferredMutations, deferred...)
+		}
 
 		// Count only successfully applied mutations (persisted events + deferred)
 		totalMutations += len(newEvents) + len(deferred)
@@ -148,8 +154,10 @@ func (e *Engine) Tick(pendingEvents []event.Event) (Result, error) {
 		// Refresh snapshot so subsequent waves see state changes from this wave
 		snapshot.Primitives = e.registry.AllStates()
 
-		recentPage, _ := e.store.Recent(100, types.None[types.Cursor]())
-		if recentPage.Items() != nil {
+		recentPage, recentErr := e.store.Recent(100, types.None[types.Cursor]())
+		if recentErr != nil {
+			allMutationErrors = append(allMutationErrors, fmt.Errorf("inter-wave snapshot refresh: %w", recentErr))
+		} else if recentPage.Items() != nil {
 			recentCopy := make([]event.Event, len(recentPage.Items()))
 			copy(recentCopy, recentPage.Items())
 			snapshot.RecentEvents = recentCopy
