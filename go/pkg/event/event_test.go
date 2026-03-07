@@ -395,6 +395,14 @@ func (c *contentVisitorCollector) VisitEGIPProofReceived(EGIPProofReceivedConten
 func (c *contentVisitorCollector) VisitEGIPTreatyProposed(EGIPTreatyProposedContent)  { c.visited = "egip.treaty.proposed" }
 func (c *contentVisitorCollector) VisitEGIPTreatyActive(EGIPTreatyActiveContent)      { c.visited = "egip.treaty.active" }
 func (c *contentVisitorCollector) VisitEGIPTrustUpdated(EGIPTrustUpdatedContent)      { c.visited = "egip.trust.updated" }
+func (c *contentVisitorCollector) VisitGrammarEmit(GrammarEmitContent)                { c.visited = "grammar.emit" }
+func (c *contentVisitorCollector) VisitGrammarRespond(GrammarRespondContent)          { c.visited = "grammar.respond" }
+func (c *contentVisitorCollector) VisitGrammarDerive(GrammarDeriveContent)            { c.visited = "grammar.derive" }
+func (c *contentVisitorCollector) VisitGrammarExtend(GrammarExtendContent)            { c.visited = "grammar.extend" }
+func (c *contentVisitorCollector) VisitGrammarRetract(GrammarRetractContent)          { c.visited = "grammar.retract" }
+func (c *contentVisitorCollector) VisitGrammarAnnotate(GrammarAnnotateContent)        { c.visited = "grammar.annotate" }
+func (c *contentVisitorCollector) VisitGrammarMerge(GrammarMergeContent)              { c.visited = "grammar.merge" }
+func (c *contentVisitorCollector) VisitGrammarConsent(GrammarConsentContent)          { c.visited = "grammar.consent" }
 
 func TestEventContentVisitorDispatch(t *testing.T) {
 	contents := []EventContent{
@@ -406,6 +414,9 @@ func TestEventContentVisitorDispatch(t *testing.T) {
 		ViolationDetectedContent{}, ChainVerifiedContent{}, ChainBrokenContent{},
 		BootstrapContent{}, ClockTickContent{}, HealthReportContent{},
 		BranchProposedContent{}, BranchInsertedContent{}, CostReportContent{},
+		GrammarEmitContent{}, GrammarRespondContent{}, GrammarDeriveContent{},
+		GrammarExtendContent{}, GrammarRetractContent{}, GrammarAnnotateContent{},
+		GrammarMergeContent{}, GrammarConsentContent{},
 		EGIPHelloSentContent{}, EGIPHelloReceivedContent{},
 		EGIPMessageSentContent{}, EGIPMessageReceivedContent{},
 		EGIPReceiptSentContent{}, EGIPReceiptReceivedContent{},
@@ -782,8 +793,8 @@ func TestHashChainLinking(t *testing.T) {
 func TestDefaultRegistry(t *testing.T) {
 	r := DefaultRegistry()
 	allTypes := r.AllTypes()
-	if len(allTypes) != 33 {
-		t.Errorf("expected 33 registered types, got %d", len(allTypes))
+	if len(allTypes) != 41 {
+		t.Errorf("expected 41 registered types, got %d", len(allTypes))
 	}
 	if !r.IsRegistered(EventTypeTrustUpdated) {
 		t.Error("trust.updated should be registered")

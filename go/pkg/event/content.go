@@ -46,6 +46,15 @@ type EventContentVisitor interface {
 	VisitBranchProposed(BranchProposedContent)
 	VisitBranchInserted(BranchInsertedContent)
 	VisitCostReport(CostReportContent)
+	// Social grammar
+	VisitGrammarEmit(GrammarEmitContent)
+	VisitGrammarRespond(GrammarRespondContent)
+	VisitGrammarDerive(GrammarDeriveContent)
+	VisitGrammarExtend(GrammarExtendContent)
+	VisitGrammarRetract(GrammarRetractContent)
+	VisitGrammarAnnotate(GrammarAnnotateContent)
+	VisitGrammarMerge(GrammarMergeContent)
+	VisitGrammarConsent(GrammarConsentContent)
 	// EGIP
 	VisitEGIPHelloSent(EGIPHelloSentContent)
 	VisitEGIPHelloReceived(EGIPHelloReceivedContent)
@@ -341,6 +350,81 @@ type PathStep struct {
 	Branch    MatchValue
 }
 
+// --- Social grammar content ---
+
+// GrammarEmitContent is emitted when independent content is created.
+type GrammarEmitContent struct {
+	Body string
+}
+
+func (c GrammarEmitContent) EventTypeName() string          { return "grammar.emit" }
+func (c GrammarEmitContent) Accept(v EventContentVisitor)   { v.VisitGrammarEmit(c) }
+
+// GrammarRespondContent is emitted when causally dependent, subordinate content is created.
+type GrammarRespondContent struct {
+	Body   string
+	Parent types.EventID
+}
+
+func (c GrammarRespondContent) EventTypeName() string        { return "grammar.respond" }
+func (c GrammarRespondContent) Accept(v EventContentVisitor) { v.VisitGrammarRespond(c) }
+
+// GrammarDeriveContent is emitted when causally dependent but independent content is created.
+type GrammarDeriveContent struct {
+	Body   string
+	Source types.EventID
+}
+
+func (c GrammarDeriveContent) EventTypeName() string        { return "grammar.derive" }
+func (c GrammarDeriveContent) Accept(v EventContentVisitor) { v.VisitGrammarDerive(c) }
+
+// GrammarExtendContent is emitted when sequential content from the same author is created.
+type GrammarExtendContent struct {
+	Body     string
+	Previous types.EventID
+}
+
+func (c GrammarExtendContent) EventTypeName() string        { return "grammar.extend" }
+func (c GrammarExtendContent) Accept(v EventContentVisitor) { v.VisitGrammarExtend(c) }
+
+// GrammarRetractContent is emitted when own content is tombstoned.
+type GrammarRetractContent struct {
+	Target types.EventID
+	Reason string
+}
+
+func (c GrammarRetractContent) EventTypeName() string        { return "grammar.retract" }
+func (c GrammarRetractContent) Accept(v EventContentVisitor) { v.VisitGrammarRetract(c) }
+
+// GrammarAnnotateContent is emitted when metadata is attached to existing content.
+type GrammarAnnotateContent struct {
+	Target types.EventID
+	Key    string
+	Value  string
+}
+
+func (c GrammarAnnotateContent) EventTypeName() string        { return "grammar.annotate" }
+func (c GrammarAnnotateContent) Accept(v EventContentVisitor) { v.VisitGrammarAnnotate(c) }
+
+// GrammarMergeContent is emitted when two or more independent subtrees are joined.
+type GrammarMergeContent struct {
+	Body    string
+	Sources []types.EventID
+}
+
+func (c GrammarMergeContent) EventTypeName() string        { return "grammar.merge" }
+func (c GrammarMergeContent) Accept(v EventContentVisitor) { v.VisitGrammarMerge(c) }
+
+// GrammarConsentContent is emitted for a mutual, atomic, dual-signed event.
+type GrammarConsentContent struct {
+	Parties   [2]types.ActorID
+	Agreement string
+	Scope     types.DomainScope
+}
+
+func (c GrammarConsentContent) EventTypeName() string        { return "grammar.consent" }
+func (c GrammarConsentContent) Accept(v EventContentVisitor) { v.VisitGrammarConsent(c) }
+
 // --- EGIP content ---
 
 // EGIPHelloSentContent records a HELLO sent to a remote system.
@@ -508,6 +592,9 @@ func DefaultRegistry() *EventTypeRegistry {
 		EventTypeViolationDetected, EventTypeChainVerified, EventTypeChainBroken,
 		EventTypeSystemBootstrapped, EventTypeClockTick, EventTypeHealthReport,
 		EventTypeDecisionBranchProposed, EventTypeDecisionBranchInserted, EventTypeDecisionCostReport,
+		EventTypeGrammarEmit, EventTypeGrammarRespond, EventTypeGrammarDerive,
+		EventTypeGrammarExtend, EventTypeGrammarRetract, EventTypeGrammarAnnotate,
+		EventTypeGrammarMerge, EventTypeGrammarConsent,
 		EventTypeEGIPHelloSent, EventTypeEGIPHelloReceived,
 		EventTypeEGIPMessageSent, EventTypeEGIPMessageReceived,
 		EventTypeEGIPReceiptSent, EventTypeEGIPReceiptReceived,

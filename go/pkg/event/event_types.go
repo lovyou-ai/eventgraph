@@ -40,6 +40,16 @@ var (
 	EventTypeDecisionBranchInserted = types.MustEventType("decision.branch.inserted")
 	EventTypeDecisionCostReport     = types.MustEventType("decision.cost.report")
 
+	// Social grammar
+	EventTypeGrammarEmit     = types.MustEventType("grammar.emit")
+	EventTypeGrammarRespond  = types.MustEventType("grammar.respond")
+	EventTypeGrammarDerive   = types.MustEventType("grammar.derive")
+	EventTypeGrammarExtend   = types.MustEventType("grammar.extend")
+	EventTypeGrammarRetract  = types.MustEventType("grammar.retract")
+	EventTypeGrammarAnnotate = types.MustEventType("grammar.annotate")
+	EventTypeGrammarMerge    = types.MustEventType("grammar.merge")
+	EventTypeGrammarConsent  = types.MustEventType("grammar.consent")
+
 	// EGIP protocol
 	EventTypeEGIPHelloSent        = types.MustEventType("egip.hello.sent")
 	EventTypeEGIPHelloReceived    = types.MustEventType("egip.hello.received")
