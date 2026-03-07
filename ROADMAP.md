@@ -147,53 +147,53 @@ The 45 foundation primitives in 11 groups. Each primitive needs: implementation,
 - [x] Signature primitive — tracks Ed25519 signature presence
 - [x] Verify primitive — verifies signature format, tracks verified/failed counts
 
-### Group 3 — Expectations
-- [ ] Expectation primitive
-- [ ] Timeout primitive
-- [ ] Violation primitive
-- [ ] Severity primitive
+### Group 3 — Expectations — DONE
+- [x] Expectation primitive — tracks pending expectations from authority requests
+- [x] Timeout primitive — monitors for expired expectations
+- [x] Violation primitive — detects and records unmet expectations
+- [x] Severity primitive — classifies violations by severity level
 
-### Group 4 — Trust
-- [ ] TrustScore primitive
-- [ ] TrustUpdate primitive
-- [ ] Corroboration primitive
-- [ ] Contradiction primitive
+### Group 4 — Trust — DONE
+- [x] TrustScore primitive — monitors trust score snapshots
+- [x] TrustUpdate primitive — tracks trust changes and decay
+- [x] Corroboration primitive — detects multi-source agreement
+- [x] Contradiction primitive — detects conflicting trust signals
 
-### Group 5 — Confidence
-- [ ] Confidence primitive
-- [ ] Evidence primitive
-- [ ] Revision primitive
-- [ ] Uncertainty primitive
+### Group 5 — Confidence — DONE
+- [x] Confidence primitive — tracks decision confidence levels
+- [x] Evidence primitive — tracks causal evidence chains
+- [x] Revision primitive — tracks content retractions
+- [x] Uncertainty primitive — monitors escalations from low confidence
 
-### Group 6 — Instrumentation
-- [ ] InstrumentationSpec primitive
-- [ ] CoverageCheck primitive
-- [ ] Gap primitive
-- [ ] Blind primitive
+### Group 6 — Instrumentation — DONE
+- [x] InstrumentationSpec primitive — defines measurement scope
+- [x] CoverageCheck primitive — verifies all event types have subscribers
+- [x] Gap primitive — detects time periods with no events
+- [x] Blind primitive — detects blind spots with no instrumentation
 
-### Group 7 — Query
-- [ ] PathQuery primitive
-- [ ] SubgraphExtract primitive
-- [ ] Annotate primitive
-- [ ] Timeline primitive
+### Group 7 — Query — DONE
+- [x] PathQuery primitive — supports causal path queries
+- [x] SubgraphExtract primitive — extracts subgraphs around events
+- [x] Annotate primitive — tracks annotation events
+- [x] Timeline primitive — provides chronological event views
 
-### Group 8 — Integrity
-- [ ] HashChain primitive
-- [ ] ChainVerify primitive
-- [ ] Witness primitive
-- [ ] IntegrityViolation primitive
+### Group 8 — Integrity — DONE
+- [x] HashChain primitive — maintains and monitors hash chain
+- [x] ChainVerify primitive — periodically verifies chain integrity
+- [x] Witness primitive — records event witnessing for third-party verification
+- [x] IntegrityViolation primitive — detects chain integrity violations
 
-### Group 9 — Deception
-- [ ] Pattern primitive
-- [ ] DeceptionIndicator primitive
-- [ ] Suspicion primitive
-- [ ] Quarantine primitive
+### Group 9 — Deception — DONE
+- [x] Pattern primitive — detects recurring event patterns
+- [x] DeceptionIndicator primitive — watches for deceptive behaviour signs
+- [x] Suspicion primitive — tracks actors with declining trust
+- [x] Quarantine primitive — manages actor quarantine
 
-### Group 10 — Health
-- [ ] GraphHealth primitive
-- [ ] Invariant primitive
-- [ ] InvariantCheck primitive
-- [ ] Bootstrap primitive
+### Group 10 — Health — DONE
+- [x] GraphHealth primitive — monitors overall graph health
+- [x] Invariant primitive — defines and checks system invariants
+- [x] InvariantCheck primitive — periodic invariant verification
+- [x] Bootstrap primitive — monitors system bootstrap status
 
 ---
 
