@@ -41,6 +41,9 @@ func deriveActorID(pk types.PublicKey) types.ActorID {
 	return aid
 }
 
+// Register creates a new actor or returns the existing one if the public key is already registered.
+// Idempotent on public key: re-registration returns the existing actor without updating displayName or actorType.
+// Use Update to modify actor properties after registration.
 func (s *InMemoryActorStore) Register(publicKey types.PublicKey, displayName string, actorType event.ActorType) (IActor, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

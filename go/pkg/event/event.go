@@ -114,7 +114,7 @@ func (e Event) IsBootstrap() bool {
 // Format: version|prev_hash|id|type|source|conversation_id|timestamp_nanos|content_json
 func CanonicalForm(e Event) string {
 	prevHash := ""
-	if e.prevHash != types.ZeroHash() {
+	if !e.prevHash.IsZero() {
 		prevHash = e.prevHash.Value()
 	}
 

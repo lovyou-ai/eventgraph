@@ -2,6 +2,7 @@ package authority
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/actor"
@@ -13,6 +14,9 @@ import (
 
 // MaxChainDepth is the maximum delegation chain depth to prevent infinite loops.
 const MaxChainDepth = 10
+
+// ErrChainDepthExceeded is returned when a delegation chain exceeds MaxChainDepth.
+var ErrChainDepthExceeded = fmt.Errorf("delegation chain depth exceeds %d", MaxChainDepth)
 
 // DelegationChain walks Authority edges in the store to build delegation chains.
 // Unlike DefaultAuthorityChain (flat model), this supports multi-hop delegation
@@ -101,6 +105,9 @@ func (c *DelegationChain) Chain(ctx context.Context, a actor.IActor, action stri
 	return chain, nil
 }
 
+// Grant creates an authority edge. The returned edge is not persisted —
+// the caller must persist it by recording an edge.created event via the store.
+// This separation follows the pattern: factory creates, store persists.
 func (c *DelegationChain) Grant(_ context.Context, from actor.IActor, to actor.IActor, scope types.DomainScope, weight types.Score) (event.Edge, error) {
 	eid, err := types.NewEventIDFromNew()
 	if err != nil {
@@ -125,6 +132,7 @@ func (c *DelegationChain) Grant(_ context.Context, from actor.IActor, to actor.I
 	return edge, nil
 }
 
+// Revoke is a stub — full implementation would record an edge.superseded event.
 func (c *DelegationChain) Revoke(_ context.Context, _ actor.IActor, _ actor.IActor, _ types.DomainScope) error {
 	return nil
 }
@@ -140,7 +148,7 @@ func (c *DelegationChain) walkChain(ctx context.Context, actorID types.ActorID, 
 		return nil, nil // cycle detected
 	}
 	if len(visited) >= MaxChainDepth {
-		return nil, nil // depth limit
+		return nil, ErrChainDepthExceeded
 	}
 	visited[actorID] = true
 

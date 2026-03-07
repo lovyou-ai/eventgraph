@@ -89,6 +89,8 @@ func ExtractBranch(pattern PatternResult) *LeafNode {
 
 // Evolve analyzes the tree for LLM leaves with detectable patterns and
 // replaces them with mechanical branches. Returns the evolution result.
+// Evolves at most one leaf per call — callers should loop until !result.Evolved
+// to evolve all eligible leaves.
 // The tree is mutated in place — the caller should persist after evolution.
 func Evolve(tree *DecisionTree, config EvolutionConfig) EvolutionResult {
 	tree.mu.Lock()

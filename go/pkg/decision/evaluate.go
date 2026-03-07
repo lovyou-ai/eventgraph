@@ -104,7 +104,9 @@ func evaluateSemantic(ctx context.Context, n *InternalNode, input EvaluateInput,
 		return n.Default, step, nil
 	}
 
-	// Check if response confidence meets threshold
+	// Check if response confidence meets threshold.
+	// Current limitation: semantic nodes are binary (confident → branch[0], else → default).
+	// Future: match resp.Content() against branch match values for multi-way semantic routing.
 	if n.Condition.Threshold.IsSome() {
 		threshold := n.Condition.Threshold.Unwrap()
 		if resp.Confidence().Value() >= threshold.Value() && len(n.Branches) > 0 {

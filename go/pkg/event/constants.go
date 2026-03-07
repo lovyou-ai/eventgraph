@@ -1,5 +1,7 @@
 package event
 
+import "fmt"
+
 // EdgeType represents the type of relationship in the graph.
 type EdgeType string
 
@@ -58,6 +60,8 @@ func (t EdgeType) Accept(v EdgeTypeVisitor) {
 		v.VisitChannel()
 	case EdgeTypeAnnotation:
 		v.VisitAnnotation()
+	default:
+		panic(fmt.Sprintf("EdgeType.Accept: unrecognized EdgeType %q", t))
 	}
 }
 
@@ -93,6 +97,8 @@ func (l AuthorityLevel) Accept(v AuthorityLevelVisitor) {
 		v.VisitRecommended()
 	case AuthorityLevelNotification:
 		v.VisitNotification()
+	default:
+		panic(fmt.Sprintf("AuthorityLevel.Accept: unrecognized AuthorityLevel %q", l))
 	}
 }
 
@@ -133,6 +139,8 @@ func (o DecisionOutcome) Accept(v DecisionOutcomeVisitor) {
 		v.VisitDefer()
 	case DecisionOutcomeEscalate:
 		v.VisitEscalate()
+	default:
+		panic(fmt.Sprintf("DecisionOutcome.Accept: unrecognized DecisionOutcome %q", o))
 	}
 }
 

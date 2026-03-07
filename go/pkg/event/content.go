@@ -279,9 +279,39 @@ func (c ClockTickContent) Accept(v EventContentVisitor) { v.VisitClockTick(c) }
 type HealthReportContent struct {
 	Overall         types.Score
 	ChainIntegrity  bool
-	PrimitiveHealth map[types.PrimitiveID]types.Score
+	primitiveHealth map[types.PrimitiveID]types.Score
 	ActiveActors    int
 	EventRate       float64
+}
+
+// NewHealthReportContent creates a HealthReportContent with a defensive copy of the health map.
+func NewHealthReportContent(overall types.Score, chainIntegrity bool, primitiveHealth map[types.PrimitiveID]types.Score, activeActors int, eventRate float64) HealthReportContent {
+	var ph map[types.PrimitiveID]types.Score
+	if primitiveHealth != nil {
+		ph = make(map[types.PrimitiveID]types.Score, len(primitiveHealth))
+		for k, v := range primitiveHealth {
+			ph[k] = v
+		}
+	}
+	return HealthReportContent{
+		Overall:         overall,
+		ChainIntegrity:  chainIntegrity,
+		primitiveHealth: ph,
+		ActiveActors:    activeActors,
+		EventRate:       eventRate,
+	}
+}
+
+// PrimitiveHealth returns a defensive copy of the primitive health map.
+func (c HealthReportContent) PrimitiveHealth() map[types.PrimitiveID]types.Score {
+	if c.primitiveHealth == nil {
+		return nil
+	}
+	cp := make(map[types.PrimitiveID]types.Score, len(c.primitiveHealth))
+	for k, v := range c.primitiveHealth {
+		cp[k] = v
+	}
+	return cp
 }
 
 func (c HealthReportContent) EventTypeName() string    { return "health.report" }

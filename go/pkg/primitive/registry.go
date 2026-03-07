@@ -79,10 +79,7 @@ func (r *Registry) AllStates() map[types.PrimitiveID]PrimitiveState {
 	result := make(map[types.PrimitiveID]PrimitiveState, len(r.primitives))
 	for id, p := range r.primitives {
 		ms := r.states[id]
-		stateCopy := make(map[string]any, len(ms.state))
-		for k, v := range ms.state {
-			stateCopy[k] = v
-		}
+		stateCopy := deepCopyState(ms.state)
 		result[id] = PrimitiveState{
 			ID:         id,
 			Layer:      p.Layer(),
@@ -190,6 +187,34 @@ func (r *Registry) Count() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.primitives)
+}
+
+// deepCopyState creates a deep copy of a state map.
+// Handles nested maps and slices; scalar values (string, int, float64, bool) are copied directly.
+func deepCopyState(state map[string]any) map[string]any {
+	if len(state) == 0 {
+		return make(map[string]any)
+	}
+	cp := make(map[string]any, len(state))
+	for k, v := range state {
+		cp[k] = deepCopyValue(v)
+	}
+	return cp
+}
+
+func deepCopyValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		return deepCopyState(val)
+	case []any:
+		cp := make([]any, len(val))
+		for i, elem := range val {
+			cp[i] = deepCopyValue(elem)
+		}
+		return cp
+	default:
+		return v // scalars are immutable
+	}
 }
 
 func (r *Registry) rebuildOrder() {
