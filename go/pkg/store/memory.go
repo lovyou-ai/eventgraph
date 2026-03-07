@@ -97,7 +97,7 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 		}
 	}
 
-	// Validate edge before mutating any indices
+	// Validate edge content before mutating any indices
 	var edge event.Edge
 	var hasEdge bool
 	if ev.Type() == event.EventTypeEdgeCreated {
@@ -129,6 +129,20 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 		hasEdge = true
 	}
 
+	// Validate edge supersession content before mutating any indices.
+	// Mirrors the edge.created validation above — fail fast on bad content.
+	var supersededPrevID string
+	if ev.Type() == event.EventTypeEdgeSuperseded {
+		ec, ok := ev.Content().(event.EdgeSupersededContent)
+		if !ok {
+			return event.Event{}, &EdgeIndexError{
+				EventID: ev.ID(),
+				Reason:  fmt.Sprintf("wrong content type for edge.superseded: %T", ev.Content()),
+			}
+		}
+		supersededPrevID = ec.PreviousEdge.Value()
+	}
+
 	// Store the event and update indices
 	idx := len(s.events)
 	s.events = append(s.events, ev)
@@ -145,16 +159,14 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 	}
 
 	// Handle edge supersession: remove the superseded edge from the active set.
+	// Content was validated above; supersededPrevID is set only for valid events.
 	// Uses order-preserving removal (not swap-with-last) to avoid corrupting
 	// unrelated edges when the superseded edge is not the last element.
-	if ev.Type() == event.EventTypeEdgeSuperseded {
-		if ec, ok := ev.Content().(event.EdgeSupersededContent); ok {
-			prevID := ec.PreviousEdge.Value()
-			for i, e := range s.edges {
-				if e.ID().Value() == prevID {
-					s.edges = append(s.edges[:i], s.edges[i+1:]...)
-					break
-				}
+	if supersededPrevID != "" {
+		for i, e := range s.edges {
+			if e.ID().Value() == supersededPrevID {
+				s.edges = append(s.edges[:i], s.edges[i+1:]...)
+				break
 			}
 		}
 	}

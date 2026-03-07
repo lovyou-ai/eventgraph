@@ -63,10 +63,13 @@ func (c *DefaultAuthorityChain) AddPolicy(policy AuthorityPolicy) {
 }
 
 func (c *DefaultAuthorityChain) Evaluate(ctx context.Context, a actor.IActor, action string) (AuthorityResult, error) {
+	// Capture policy under lock, then release before external calls.
+	// Matches the pattern in DelegationChain.Evaluate and prevents blocking
+	// AddPolicy if the trust model call is slow.
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	policy := c.findPolicy(action)
+	c.mu.RUnlock()
+
 	level := policy.Level
 
 	// If actor has high enough trust, downgrade Required -> Recommended

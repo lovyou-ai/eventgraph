@@ -1,13 +1,18 @@
 package bus
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/event"
 	"github.com/lovyou-ai/eventgraph/go/pkg/store"
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
+
+// closeTimeout is the maximum time Close() waits for subscriber goroutines to drain.
+const closeTimeout = 30 * time.Second
 
 // SubscriptionID identifies an active subscription.
 type SubscriptionID uint64
@@ -169,9 +174,16 @@ func (b *EventBus) Close() error {
 	for _, sub := range subs {
 		sub.closeOnce.Do(func() { close(sub.buffer) })
 	}
-	// Wait for all subscriber goroutines to drain and exit.
+	// Wait for all subscriber goroutines to drain and exit, with a timeout
+	// to prevent deadlock if a handler blocks indefinitely.
+	timer := time.NewTimer(closeTimeout)
+	defer timer.Stop()
 	for _, sub := range subs {
-		<-sub.done
+		select {
+		case <-sub.done:
+		case <-timer.C:
+			return fmt.Errorf("eventbus: close timed out after %v waiting for subscriber goroutines", closeTimeout)
+		}
 	}
 	return nil
 }
