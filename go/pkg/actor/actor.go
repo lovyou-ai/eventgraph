@@ -68,12 +68,16 @@ func (a Actor) Status() types.ActorStatus { return a.status }
 
 // withStatus returns a copy of the actor with a new status.
 func (a Actor) withStatus(status types.ActorStatus) Actor {
+	md := make(map[string]any, len(a.metadata))
+	for k, v := range a.metadata {
+		md[k] = v
+	}
 	return Actor{
 		id:          a.id,
 		publicKey:   a.publicKey,
 		displayName: a.displayName,
 		actorType:   a.actorType,
-		metadata:    a.metadata, // share the map — actors are replaced, not mutated
+		metadata:    md,
 		createdAt:   a.createdAt,
 		status:      status,
 	}

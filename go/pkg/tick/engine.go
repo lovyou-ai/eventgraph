@@ -236,26 +236,39 @@ func (e *Engine) runWave(tick types.Tick, wave int, events []event.Event, snapsh
 			go func(idx int, pw primEvents) {
 				defer wg.Done()
 
+				pid := pw.prim.ID()
+
 				// Transition: Active → Processing
-				e.registry.SetLifecycle(pw.prim.ID(), types.LifecycleProcessing)
+				if err := e.registry.SetLifecycle(pid, types.LifecycleProcessing); err != nil {
+					results[idx] = primResult{id: pid, err: fmt.Errorf("lifecycle Active→Processing: %w", err)}
+					return
+				}
 
 				mutations, err := pw.prim.Process(tick, pw.events, snapshot)
 				results[idx] = primResult{
-					id:        pw.prim.ID(),
+					id:        pid,
 					mutations: mutations,
 					err:       err,
 				}
 
 				// Transition: Processing → Active (or Emitting → Active if mutations exist)
 				if len(mutations) > 0 {
-					e.registry.SetLifecycle(pw.prim.ID(), types.LifecycleEmitting)
-					e.registry.SetLifecycle(pw.prim.ID(), types.LifecycleActive)
+					if lcErr := e.registry.SetLifecycle(pid, types.LifecycleEmitting); lcErr != nil {
+						results[idx].err = fmt.Errorf("lifecycle Processing→Emitting: %w", lcErr)
+					}
+					if lcErr := e.registry.SetLifecycle(pid, types.LifecycleActive); lcErr != nil {
+						results[idx].err = fmt.Errorf("lifecycle Emitting→Active: %w", lcErr)
+					}
 				} else {
-					e.registry.SetLifecycle(pw.prim.ID(), types.LifecycleActive)
+					if lcErr := e.registry.SetLifecycle(pid, types.LifecycleActive); lcErr != nil {
+						results[idx].err = fmt.Errorf("lifecycle Processing→Active: %w", lcErr)
+					}
 				}
 
-				// Record last tick
-				e.registry.SetLastTick(pw.prim.ID(), tick)
+				// Record last tick only on success
+				if results[idx].err == nil {
+					e.registry.SetLastTick(pid, tick)
+				}
 			}(i, w)
 		}
 		wg.Wait()
@@ -353,7 +366,7 @@ func (e *Engine) applyAndExtractNewEvents(mutations []primitive.Mutation) (newEv
 		if ae, ok := m.(primitive.AddEvent); ok {
 			convID := ae.ConversationID
 			if convID == (types.ConversationID{}) {
-				convID = types.MustConversationID("conv_tick_000000000000000000000001")
+				convID = tickConversationID
 			}
 			ev, err := e.factory.Create(
 				ae.Type, ae.Source, ae.Content, ae.Causes,

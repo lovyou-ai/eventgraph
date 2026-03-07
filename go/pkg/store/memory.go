@@ -86,6 +86,8 @@ func (s *InMemoryStore) Append(ev event.Event) (event.Event, error) {
 	if ev.Type() == event.EventTypeEdgeCreated {
 		if ec, ok := ev.Content().(event.EdgeCreatedContent); ok {
 			edgeID := types.MustEdgeID(ev.ID().Value())
+			// metadata is nil — EdgeCreatedContent does not carry typed metadata.
+			// Callers must nil-check Edge.Metadata() before calling methods on it.
 			edge, edgeErr := event.NewEdge(
 				edgeID, ec.From, ec.To, ec.EdgeType, ec.Weight, ec.Direction,
 				ec.Scope, nil, ev.Timestamp(), ec.ExpiresAt,
@@ -125,7 +127,7 @@ func (s *InMemoryStore) Recent(limit int, after types.Option[types.Cursor]) (typ
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.paginateReverse(s.allIndices(), limit, after), nil
+	return s.paginateReverse(s.allIndices(), limit, after)
 }
 
 func (s *InMemoryStore) ByType(eventType types.EventType, limit int, after types.Option[types.Cursor]) (types.Page[event.Event], error) {
@@ -133,7 +135,7 @@ func (s *InMemoryStore) ByType(eventType types.EventType, limit int, after types
 	defer s.mu.RUnlock()
 
 	indices := s.byType[eventType.Value()]
-	return s.paginateReverse(indices, limit, after), nil
+	return s.paginateReverse(indices, limit, after)
 }
 
 func (s *InMemoryStore) BySource(source types.ActorID, limit int, after types.Option[types.Cursor]) (types.Page[event.Event], error) {
@@ -141,7 +143,7 @@ func (s *InMemoryStore) BySource(source types.ActorID, limit int, after types.Op
 	defer s.mu.RUnlock()
 
 	indices := s.bySrc[source]
-	return s.paginateReverse(indices, limit, after), nil
+	return s.paginateReverse(indices, limit, after)
 }
 
 func (s *InMemoryStore) ByConversation(id types.ConversationID, limit int, after types.Option[types.Cursor]) (types.Page[event.Event], error) {
@@ -149,7 +151,7 @@ func (s *InMemoryStore) ByConversation(id types.ConversationID, limit int, after
 	defer s.mu.RUnlock()
 
 	indices := s.byConv[id]
-	return s.paginateReverse(indices, limit, after), nil
+	return s.paginateReverse(indices, limit, after)
 }
 
 func (s *InMemoryStore) Since(afterID types.EventID, limit int) (types.Page[event.Event], error) {
@@ -340,7 +342,7 @@ func (s *InMemoryStore) allIndices() []int {
 	return indices
 }
 
-func (s *InMemoryStore) paginateReverse(indices []int, limit int, after types.Option[types.Cursor]) types.Page[event.Event] {
+func (s *InMemoryStore) paginateReverse(indices []int, limit int, after types.Option[types.Cursor]) (types.Page[event.Event], error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -349,12 +351,17 @@ func (s *InMemoryStore) paginateReverse(indices []int, limit int, after types.Op
 	startPos := len(indices) - 1
 	if after.IsSome() {
 		cursor := after.Unwrap()
-		// Find the cursor position
+		found := false
 		for i := len(indices) - 1; i >= 0; i-- {
 			if s.events[indices[i]].ID().Value() == cursor.Value() {
 				startPos = i - 1
+				found = true
 				break
 			}
+		}
+		if !found {
+			return types.NewPage[event.Event](nil, types.None[types.Cursor](), false),
+				fmt.Errorf("invalid cursor: event %q not found", cursor.Value())
 		}
 	}
 
@@ -370,5 +377,5 @@ func (s *InMemoryStore) paginateReverse(indices []int, limit int, after types.Op
 		cursor = types.Some(c)
 	}
 
-	return types.NewPage(items, cursor, hasMore)
+	return types.NewPage(items, cursor, hasMore), nil
 }

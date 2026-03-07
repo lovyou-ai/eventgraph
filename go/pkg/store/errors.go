@@ -25,6 +25,14 @@ type ActorNotFoundError struct{ ID types.ActorID }
 func (e *ActorNotFoundError) Error() string { return fmt.Sprintf("actor not found: %s", e.ID.Value()) }
 func (e *ActorNotFoundError) storeError()   {}
 
+// ActorKeyNotFoundError indicates an actor was not found by public key.
+type ActorKeyNotFoundError struct{ KeyHex string }
+
+func (e *ActorKeyNotFoundError) Error() string {
+	return fmt.Sprintf("actor not found for public key %s", e.KeyHex)
+}
+func (e *ActorKeyNotFoundError) storeError() {}
+
 // EdgeNotFoundError indicates an edge was not found.
 type EdgeNotFoundError struct {
 	From     types.ActorID

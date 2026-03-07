@@ -1,6 +1,7 @@
 package event
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -312,6 +313,46 @@ func (c HealthReportContent) PrimitiveHealth() map[types.PrimitiveID]types.Score
 		cp[k] = v
 	}
 	return cp
+}
+
+// MarshalJSON includes the unexported primitiveHealth field in JSON output
+// so it is captured by the canonical form and hash.
+func (c HealthReportContent) MarshalJSON() ([]byte, error) {
+	type alias struct {
+		Overall         types.Score                        `json:"Overall"`
+		ChainIntegrity  bool                               `json:"ChainIntegrity"`
+		PrimitiveHealth map[types.PrimitiveID]types.Score  `json:"PrimitiveHealth,omitempty"`
+		ActiveActors    int                                `json:"ActiveActors"`
+		EventRate       float64                            `json:"EventRate"`
+	}
+	return json.Marshal(alias{
+		Overall:         c.Overall,
+		ChainIntegrity:  c.ChainIntegrity,
+		PrimitiveHealth: c.primitiveHealth,
+		ActiveActors:    c.ActiveActors,
+		EventRate:       c.EventRate,
+	})
+}
+
+// UnmarshalJSON restores the unexported primitiveHealth field from JSON.
+func (c *HealthReportContent) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		Overall         types.Score                        `json:"Overall"`
+		ChainIntegrity  bool                               `json:"ChainIntegrity"`
+		PrimitiveHealth map[types.PrimitiveID]types.Score  `json:"PrimitiveHealth,omitempty"`
+		ActiveActors    int                                `json:"ActiveActors"`
+		EventRate       float64                            `json:"EventRate"`
+	}
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	c.Overall = a.Overall
+	c.ChainIntegrity = a.ChainIntegrity
+	c.primitiveHealth = a.PrimitiveHealth
+	c.ActiveActors = a.ActiveActors
+	c.EventRate = a.EventRate
+	return nil
 }
 
 func (c HealthReportContent) EventTypeName() string    { return "health.report" }

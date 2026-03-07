@@ -80,7 +80,7 @@ func (s *InMemoryActorStore) GetByPublicKey(publicKey types.PublicKey) (IActor, 
 	keyHex := pubKeyHex(publicKey)
 	id, ok := s.byKey[keyHex]
 	if !ok {
-		return nil, fmt.Errorf("actor not found for public key %s", keyHex)
+		return nil, &store.ActorKeyNotFoundError{KeyHex: keyHex}
 	}
 	return s.actors[id], nil
 }

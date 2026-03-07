@@ -74,6 +74,15 @@ func (b *EventBus) Subscribe(pattern types.SubscriptionPattern, handler func(eve
 		buffer:  ch,
 	}
 
+	// Register before starting goroutine so Publish can deliver immediately.
+	b.mu.Lock()
+	if b.closed.Load() {
+		b.mu.Unlock()
+		return 0
+	}
+	b.subs[id] = sub
+	b.mu.Unlock()
+
 	// Start delivery goroutine with panic recovery.
 	// Panics are caught to prevent a misbehaving subscriber from killing delivery.
 	// The panic value is stored on the subscription for diagnostic visibility.
@@ -89,10 +98,6 @@ func (b *EventBus) Subscribe(pattern types.SubscriptionPattern, handler func(eve
 			}()
 		}
 	}()
-
-	b.mu.Lock()
-	b.subs[id] = sub
-	b.mu.Unlock()
 
 	return id
 }

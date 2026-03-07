@@ -152,6 +152,12 @@ func (g *Graph) Record(
 
 // Bootstrap initializes the graph with a genesis event.
 func (g *Graph) Bootstrap(systemActor types.ActorID, signer event.Signer) (event.Event, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	if g.closed {
+		return event.Event{}, fmt.Errorf("graph is closed")
+	}
+
 	bf := event.NewBootstrapFactory(g.registry)
 	ev, err := bf.Init(systemActor, signer)
 	if err != nil {
