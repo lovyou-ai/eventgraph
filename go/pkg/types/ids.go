@@ -1,10 +1,13 @@
 package types
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // UUID v7 format: 8-4-4-4-12 hex with version nibble = 7 and variant bits = 10xx
@@ -45,6 +48,41 @@ func (id EventID) IsZero() bool { return id.value == "" }
 
 func (id EventID) MarshalJSON() ([]byte, error)  { return json.Marshal(id.value) }
 func (id *EventID) UnmarshalJSON(b []byte) error  { return unmarshalID(b, &id.value, NewEventID) }
+
+// NewEventIDFromNew generates a new UUID v7 EventID using the current time.
+func NewEventIDFromNew() (EventID, error) {
+	// UUID v7: 48-bit timestamp (ms) | 4-bit version (7) | 12-bit rand | 2-bit variant (10) | 62-bit rand
+	now := time.Now()
+	ms := now.UnixMilli()
+
+	var b [16]byte
+	// Timestamp: 48 bits (6 bytes)
+	b[0] = byte(ms >> 40)
+	b[1] = byte(ms >> 32)
+	b[2] = byte(ms >> 24)
+	b[3] = byte(ms >> 16)
+	b[4] = byte(ms >> 8)
+	b[5] = byte(ms)
+
+	// Random: fill remaining bytes
+	if _, err := rand.Read(b[6:]); err != nil {
+		return EventID{}, err
+	}
+
+	// Version: set high nibble of byte 6 to 0x7
+	b[6] = (b[6] & 0x0f) | 0x70
+	// Variant: set high bits of byte 8 to 10xx
+	b[8] = (b[8] & 0x3f) | 0x80
+
+	s := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		uint32(b[0])<<24|uint32(b[1])<<16|uint32(b[2])<<8|uint32(b[3]),
+		uint16(b[4])<<8|uint16(b[5]),
+		uint16(b[6])<<8|uint16(b[7]),
+		uint16(b[8])<<8|uint16(b[9]),
+		uint64(b[10])<<40|uint64(b[11])<<32|uint64(b[12])<<24|uint64(b[13])<<16|uint64(b[14])<<8|uint64(b[15]),
+	)
+	return NewEventID(s)
+}
 
 // ActorID identifies an actor. Cannot be empty.
 type ActorID struct{ value string }

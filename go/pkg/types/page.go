@@ -8,6 +8,12 @@ type Cursor struct {
 // NewCursor creates a Cursor from a string value.
 func NewCursor(v string) Cursor { return Cursor{value: v} }
 
+// MustCursor creates a Cursor. Convenience alias for NewCursor.
+func MustCursor(v string) Cursor { return Cursor{value: v} }
+
+// Value returns the cursor's underlying string.
+func (c Cursor) Value() string { return c.value }
+
 // String returns the cursor's string representation.
 func (c Cursor) String() string { return c.value }
 
