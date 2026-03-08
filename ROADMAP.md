@@ -297,18 +297,19 @@ Note: Scenario 5 (Supply Chain) is simplified to single-system provenance since 
 
 ---
 
-## Phase 5: EGIP (Inter-System Protocol)
+## Phase 5: EGIP (Inter-System Protocol) — DONE
 
-Sovereign systems communicating across graph boundaries. Deferred until the single-system event graph is complete and functional.
+Sovereign systems communicating across graph boundaries.
 
-- [ ] `go/pkg/protocol/egip/identity.go` — Ed25519 keypair, System URI
-- [ ] `go/pkg/protocol/egip/cger.go` — Cross-Graph Event Reference
-- [ ] `go/pkg/protocol/egip/envelope.go` — Signed message envelope
-- [ ] `go/pkg/protocol/egip/messages.go` — Seven message types
-- [ ] `go/pkg/protocol/egip/treaty.go` — Treaty model, lifecycle, bilateral governance
-- [ ] `go/pkg/protocol/egip/trust.go` — Trust accumulation model
-- [ ] `go/pkg/protocol/egip/proof.go` — Integrity proofs (chain segment, event existence, chain summary)
-- [ ] Tests for all of the above
+- [x] `go/pkg/protocol/egip/identity.go` — Ed25519 keypair, System URI, IIdentity interface
+- [x] `go/pkg/protocol/egip/envelope.go` — Signed message envelope, canonical form, all 7 payload types, CGERs
+- [x] `go/pkg/protocol/egip/treaty.go` — Treaty model, lifecycle state machine, bilateral governance
+- [x] `go/pkg/protocol/egip/trust.go` — PeerStore, inter-system trust accumulation, time-based decay
+- [x] `go/pkg/protocol/egip/proof.go` — Integrity proofs (chain segment, event existence, chain summary), ProofGenerator, verification
+- [x] `go/pkg/protocol/egip/transport.go` — ITransport interface (pluggable: HTTP, WebSocket, gRPC, etc.)
+- [x] `go/pkg/protocol/egip/errors.go` — 7 typed EGIP errors with EGIPError marker interface
+- [x] `go/pkg/protocol/egip/handler.go` — Protocol handler (HELLO handshake, message dispatch, replay dedup, trust updates), TreatyStore, EnvelopeDedup
+- [x] `go/pkg/protocol/egip/egip_test.go` — 71 tests, 87.2% coverage
 
 ---
 

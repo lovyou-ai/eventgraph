@@ -1,6 +1,8 @@
 package egip
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -890,5 +892,958 @@ func TestIdentityCreatedAt(t *testing.T) {
 	after := time.Now()
 	if id.CreatedAt().Before(before) || id.CreatedAt().After(after) {
 		t.Error("CreatedAt should be between before and after GenerateIdentity call")
+	}
+}
+
+// --- Envelope Dedup tests ---
+
+func TestEnvelopeDedupCheck(t *testing.T) {
+	d := NewEnvelopeDedup()
+	id := types.MustEnvelopeID("00000000-0000-0000-0000-000000000001")
+
+	if !d.Check(id) {
+		t.Error("first check should return true")
+	}
+	if d.Check(id) {
+		t.Error("second check should return false (duplicate)")
+	}
+}
+
+func TestEnvelopeDedupSize(t *testing.T) {
+	d := NewEnvelopeDedup()
+	if d.Size() != 0 {
+		t.Errorf("empty dedup Size = %d, want 0", d.Size())
+	}
+
+	d.Check(types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"))
+	d.Check(types.MustEnvelopeID("00000000-0000-0000-0000-000000000002"))
+	if d.Size() != 2 {
+		t.Errorf("Size = %d, want 2", d.Size())
+	}
+}
+
+func TestEnvelopeDedupPrune(t *testing.T) {
+	d := NewEnvelopeDedupWithTTL(1 * time.Millisecond)
+	d.Check(types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"))
+
+	time.Sleep(5 * time.Millisecond)
+	removed := d.Prune()
+	if removed != 1 {
+		t.Errorf("Prune removed %d, want 1", removed)
+	}
+	if d.Size() != 0 {
+		t.Errorf("Size after prune = %d, want 0", d.Size())
+	}
+}
+
+func TestEnvelopeDedupConcurrent(t *testing.T) {
+	d := NewEnvelopeDedup()
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			id := types.MustEnvelopeID(fmt.Sprintf("00000000-0000-0000-0000-%012d", n))
+			d.Check(id)
+		}(i)
+	}
+	wg.Wait()
+	if d.Size() != 20 {
+		t.Errorf("Size = %d, want 20", d.Size())
+	}
+}
+
+// --- Treaty Store tests ---
+
+func TestTreatyStorePutAndGet(t *testing.T) {
+	ts := NewTreatyStore()
+	id := types.MustTreatyID("00000000-0000-0000-0000-000000000010")
+	a := types.MustSystemURI("eg://system-a")
+	b := types.MustSystemURI("eg://system-b")
+
+	treaty := NewTreaty(id, a, b, []TreatyTerm{
+		{Scope: types.MustDomainScope("events"), Policy: "share", Symmetric: true},
+	})
+	ts.Put(treaty)
+
+	got, ok := ts.Get(id)
+	if !ok {
+		t.Fatal("expected treaty to be found")
+	}
+	if got.ID != id {
+		t.Errorf("ID = %v, want %v", got.ID, id)
+	}
+	if got.Status != event.TreatyStatusProposed {
+		t.Errorf("Status = %v, want Proposed", got.Status)
+	}
+
+	// Verify returned copy is independent.
+	got.Status = event.TreatyStatusTerminated
+	got2, _ := ts.Get(id)
+	if got2.Status == event.TreatyStatusTerminated {
+		t.Error("Get should return a copy, not a reference to internal state")
+	}
+}
+
+func TestTreatyStoreGetMissing(t *testing.T) {
+	ts := NewTreatyStore()
+	_, ok := ts.Get(types.MustTreatyID("00000000-0000-0000-0000-000000000099"))
+	if ok {
+		t.Error("expected treaty not found")
+	}
+}
+
+func TestTreatyStoreBySystem(t *testing.T) {
+	ts := NewTreatyStore()
+	a := types.MustSystemURI("eg://system-a")
+	b := types.MustSystemURI("eg://system-b")
+	c := types.MustSystemURI("eg://system-c")
+
+	ts.Put(NewTreaty(types.MustTreatyID("00000000-0000-0000-0000-000000000011"), a, b, nil))
+	ts.Put(NewTreaty(types.MustTreatyID("00000000-0000-0000-0000-000000000012"), b, c, nil))
+	ts.Put(NewTreaty(types.MustTreatyID("00000000-0000-0000-0000-000000000013"), a, c, nil))
+
+	byA := ts.BySystem(a)
+	if len(byA) != 2 {
+		t.Errorf("BySystem(a) count = %d, want 2", len(byA))
+	}
+
+	byB := ts.BySystem(b)
+	if len(byB) != 2 {
+		t.Errorf("BySystem(b) count = %d, want 2", len(byB))
+	}
+
+	byC := ts.BySystem(c)
+	if len(byC) != 2 {
+		t.Errorf("BySystem(c) count = %d, want 2", len(byC))
+	}
+}
+
+func TestTreatyStoreActive(t *testing.T) {
+	ts := NewTreatyStore()
+	a := types.MustSystemURI("eg://system-a")
+	b := types.MustSystemURI("eg://system-b")
+
+	t1 := NewTreaty(types.MustTreatyID("00000000-0000-0000-0000-000000000020"), a, b, nil)
+	t1.Transition(event.TreatyStatusActive)
+	ts.Put(t1)
+
+	t2 := NewTreaty(types.MustTreatyID("00000000-0000-0000-0000-000000000021"), a, b, nil)
+	ts.Put(t2) // stays Proposed
+
+	active := ts.Active()
+	if len(active) != 1 {
+		t.Errorf("Active() count = %d, want 1", len(active))
+	}
+}
+
+// --- Mock transport for handler tests ---
+
+type mockTransport struct {
+	sent     []*Envelope
+	incoming chan IncomingEnvelope
+	onSend   func(to types.SystemURI, env *Envelope) (*ReceiptPayload, error)
+}
+
+func newMockTransport() *mockTransport {
+	return &mockTransport{
+		incoming: make(chan IncomingEnvelope, 10),
+	}
+}
+
+func (m *mockTransport) Send(_ context.Context, to types.SystemURI, env *Envelope) (*ReceiptPayload, error) {
+	m.sent = append(m.sent, env)
+	if m.onSend != nil {
+		return m.onSend(to, env)
+	}
+	return &ReceiptPayload{
+		EnvelopeID: env.ID,
+		Status:     "Delivered",
+	}, nil
+}
+
+func (m *mockTransport) Listen(_ context.Context) <-chan IncomingEnvelope {
+	return m.incoming
+}
+
+// --- Handler tests ---
+
+func makeTestHandler(t *testing.T) (*Handler, *SystemIdentity, *mockTransport) {
+	t.Helper()
+	id, err := GenerateIdentity(types.MustSystemURI("eg://local"))
+	if err != nil {
+		t.Fatalf("GenerateIdentity: %v", err)
+	}
+	transport := newMockTransport()
+	peers := NewPeerStore()
+	treaties := NewTreatyStore()
+
+	h := NewHandler(id, transport, peers, treaties)
+	return h, id, transport
+}
+
+func TestHandlerHello(t *testing.T) {
+	h, _, transport := makeTestHandler(t)
+	ctx := context.Background()
+
+	remote := types.MustSystemURI("eg://remote")
+	record, err := h.Hello(ctx, remote)
+	if err != nil {
+		t.Fatalf("Hello: %v", err)
+	}
+
+	if record == nil {
+		t.Fatal("expected peer record")
+	}
+	if len(transport.sent) != 1 {
+		t.Fatalf("expected 1 sent envelope, got %d", len(transport.sent))
+	}
+	if transport.sent[0].Type != "Hello" {
+		t.Errorf("sent type = %s, want Hello", transport.sent[0].Type)
+	}
+}
+
+func TestHandlerHelloTransportFailure(t *testing.T) {
+	h, _, transport := makeTestHandler(t)
+	transport.onSend = func(_ types.SystemURI, _ *Envelope) (*ReceiptPayload, error) {
+		return nil, fmt.Errorf("connection refused")
+	}
+
+	ctx := context.Background()
+	_, err := h.Hello(ctx, types.MustSystemURI("eg://unreachable"))
+	if err == nil {
+		t.Fatal("expected error for transport failure")
+	}
+	var transportErr *TransportFailureError
+	if _, ok := err.(*TransportFailureError); !ok {
+		_ = transportErr // appease linter
+		t.Errorf("expected TransportFailureError, got %T", err)
+	}
+}
+
+func TestHandlerHandleIncomingHello(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+
+	remoteID, err := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	if err != nil {
+		t.Fatalf("GenerateIdentity: %v", err)
+	}
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000100"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Hello",
+		Payload: HelloPayload{
+			SystemURI:        remoteID.SystemURI(),
+			PublicKey:        remoteID.PublicKey(),
+			ProtocolVersions: []int{1},
+			Capabilities:     []string{"events", "treaty"},
+			ChainLength:      42,
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, err := SignEnvelope(env, remoteID)
+	if err != nil {
+		t.Fatalf("SignEnvelope: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	// Peer should be registered.
+	peer, ok := h.peers.Get(remoteID.SystemURI())
+	if !ok {
+		t.Fatal("expected remote peer to be registered")
+	}
+	if peer.NegotiatedVersion != 1 {
+		t.Errorf("NegotiatedVersion = %d, want 1", peer.NegotiatedVersion)
+	}
+	if len(peer.Capabilities) != 2 {
+		t.Errorf("Capabilities count = %d, want 2", len(peer.Capabilities))
+	}
+}
+
+func TestHandlerHandleIncomingReplayRejected(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000200"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Hello",
+		Payload: HelloPayload{
+			SystemURI:        remoteID.SystemURI(),
+			PublicKey:        remoteID.PublicKey(),
+			ProtocolVersions: []int{1},
+			Capabilities:     []string{"events"},
+			ChainLength:      1,
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	// First should succeed.
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("first HandleIncoming: %v", err)
+	}
+
+	// Replay should be rejected.
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected DuplicateEnvelopeError for replay")
+	}
+	if _, ok := err.(*DuplicateEnvelopeError); !ok {
+		t.Errorf("expected DuplicateEnvelopeError, got %T: %v", err, err)
+	}
+}
+
+func TestHandlerHandleIncomingInvalidSignature(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	otherID, _ := GenerateIdentity(types.MustSystemURI("eg://other"))
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000300"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Hello",
+		Payload: HelloPayload{
+			SystemURI:        remoteID.SystemURI(),
+			PublicKey:        remoteID.PublicKey(),
+			ProtocolVersions: []int{1},
+			Capabilities:     nil,
+			ChainLength:      0,
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	// Sign with wrong key.
+	signed, _ := SignEnvelope(env, otherID)
+
+	ctx := context.Background()
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected error for invalid signature")
+	}
+	if _, ok := err.(*EnvelopeSignatureInvalidError); !ok {
+		t.Errorf("expected EnvelopeSignatureInvalidError, got %T: %v", err, err)
+	}
+}
+
+func TestHandlerHandleIncomingVersionIncompatible(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	h.LocalProtocolVersions = []int{2, 3} // only support v2 and v3
+
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000400"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Hello",
+		Payload: HelloPayload{
+			SystemURI:        remoteID.SystemURI(),
+			PublicKey:        remoteID.PublicKey(),
+			ProtocolVersions: []int{1}, // only v1
+			Capabilities:     nil,
+			ChainLength:      0,
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected version incompatible error")
+	}
+	if _, ok := err.(*VersionIncompatibleError); !ok {
+		t.Errorf("expected VersionIncompatibleError, got %T: %v", err, err)
+	}
+}
+
+func TestHandlerHandleIncomingMessage(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+
+	// Register the peer first (HELLO would do this normally).
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), []string{"events"}, 1)
+
+	var receivedFrom types.SystemURI
+	var receivedPayload *MessagePayloadContent
+	h.OnMessage = func(from types.SystemURI, payload *MessagePayloadContent) error {
+		receivedFrom = from
+		receivedPayload = payload
+		return nil
+	}
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000500"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Message",
+		Payload: MessagePayloadContent{
+			ContentType:    types.MustEventType("trust.updated"),
+			ConversationID: types.None[types.ConversationID](),
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	if receivedFrom != remoteID.SystemURI() {
+		t.Errorf("OnMessage from = %v, want %v", receivedFrom, remoteID.SystemURI())
+	}
+	if receivedPayload == nil {
+		t.Error("OnMessage payload should not be nil")
+	}
+}
+
+func TestHandlerHandleIncomingReceipt(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000600"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Receipt",
+		Payload: ReceiptPayload{
+			EnvelopeID: types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"),
+			Status:     "Processed",
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	// Trust should increase for receipt.
+	peer, _ := h.peers.Get(remoteID.SystemURI())
+	if peer.Trust.Value() <= 0 {
+		t.Error("trust should increase on receipt")
+	}
+}
+
+func TestHandlerHandleIncomingProof(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000700"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Proof",
+		Payload: ProofPayload{
+			ProofType: event.ProofTypeChainSummary,
+			Data: ChainSummaryProof{
+				Length:    50,
+				Timestamp: time.Now(),
+			},
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	// Trust should increase for valid proof.
+	peer, _ := h.peers.Get(remoteID.SystemURI())
+	if peer.Trust.Value() <= 0 {
+		t.Error("trust should increase for valid proof")
+	}
+}
+
+func TestHandlerHandleIncomingTreatyPropose(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	treatyID := types.MustTreatyID("00000000-0000-0000-0000-000000000030")
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000800"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Treaty",
+		Payload: TreatyPayload{
+			TreatyID: treatyID,
+			Action:   "Propose",
+			Terms: []TreatyTerm{
+				{Scope: types.MustDomainScope("events"), Policy: "share-all", Symmetric: true},
+			},
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	// Treaty should be stored.
+	treaty, ok := h.treaties.Get(treatyID)
+	if !ok {
+		t.Fatal("expected treaty to be stored")
+	}
+	if treaty.Status != event.TreatyStatusProposed {
+		t.Errorf("treaty status = %v, want Proposed", treaty.Status)
+	}
+}
+
+func TestHandlerHandleIncomingTreatyAccept(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	// Pre-create a proposed treaty.
+	treatyID := types.MustTreatyID("00000000-0000-0000-0000-000000000031")
+	treaty := NewTreaty(treatyID, localID.SystemURI(), remoteID.SystemURI(), nil)
+	h.treaties.Put(treaty)
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000801"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Treaty",
+		Payload: TreatyPayload{
+			TreatyID: treatyID,
+			Action:   "Accept",
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	got, _ := h.treaties.Get(treatyID)
+	if got.Status != event.TreatyStatusActive {
+		t.Errorf("treaty status = %v, want Active", got.Status)
+	}
+
+	// Trust should increase on accept.
+	peer, _ := h.peers.Get(remoteID.SystemURI())
+	if peer.Trust.Value() <= 0 {
+		t.Error("trust should increase on treaty accept")
+	}
+}
+
+func TestHandlerHandleIncomingUnknownSender(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://unknown"))
+
+	// Don't register the peer — MESSAGE from unknown sender should fail.
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000900"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Message",
+		Payload: MessagePayloadContent{
+			ContentType: types.MustEventType("trust.updated"),
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected error for unknown sender")
+	}
+	if _, ok := err.(*SystemNotFoundError); !ok {
+		t.Errorf("expected SystemNotFoundError, got %T: %v", err, err)
+	}
+}
+
+func TestGenerateUUID4Format(t *testing.T) {
+	uuid := generateUUID4()
+	if len(uuid) != 36 {
+		t.Errorf("UUID length = %d, want 36", len(uuid))
+	}
+	// Check dashes at correct positions.
+	if uuid[8] != '-' || uuid[13] != '-' || uuid[18] != '-' || uuid[23] != '-' {
+		t.Errorf("UUID format invalid: %s", uuid)
+	}
+}
+
+func TestHandlerHelloWithChainLength(t *testing.T) {
+	h, _, _ := makeTestHandler(t)
+	h.ChainLength = func() (int, error) { return 42, nil }
+
+	ctx := context.Background()
+	_, err := h.Hello(ctx, types.MustSystemURI("eg://remote"))
+	if err != nil {
+		t.Fatalf("Hello: %v", err)
+	}
+}
+
+func TestHandlerHelloRejected(t *testing.T) {
+	h, _, transport := makeTestHandler(t)
+	transport.onSend = func(_ types.SystemURI, _ *Envelope) (*ReceiptPayload, error) {
+		return &ReceiptPayload{
+			Status: "Rejected",
+			Reason: types.Some("go away"),
+		}, nil
+	}
+
+	ctx := context.Background()
+	_, err := h.Hello(ctx, types.MustSystemURI("eg://hostile"))
+	if err == nil {
+		t.Fatal("expected error for rejected hello")
+	}
+}
+
+func TestHandlerHandleIncomingTreatySuspend(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	treatyID := types.MustTreatyID("00000000-0000-0000-0000-000000000032")
+	treaty := NewTreaty(treatyID, localID.SystemURI(), remoteID.SystemURI(), nil)
+	treaty.Transition(event.TreatyStatusActive)
+	h.treaties.Put(treaty)
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000810"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Treaty",
+		Payload: TreatyPayload{
+			TreatyID: treatyID,
+			Action:   "Suspend",
+			Reason:   types.Some("maintenance"),
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	got, _ := h.treaties.Get(treatyID)
+	if got.Status != event.TreatyStatusSuspended {
+		t.Errorf("treaty status = %v, want Suspended", got.Status)
+	}
+}
+
+func TestHandlerHandleIncomingTreatyTerminate(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	treatyID := types.MustTreatyID("00000000-0000-0000-0000-000000000033")
+	treaty := NewTreaty(treatyID, localID.SystemURI(), remoteID.SystemURI(), nil)
+	treaty.Transition(event.TreatyStatusActive)
+	h.treaties.Put(treaty)
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000811"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Treaty",
+		Payload: TreatyPayload{
+			TreatyID: treatyID,
+			Action:   "Terminate",
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	got, _ := h.treaties.Get(treatyID)
+	if got.Status != event.TreatyStatusTerminated {
+		t.Errorf("treaty status = %v, want Terminated", got.Status)
+	}
+}
+
+func TestHandlerHandleIncomingTreatyModify(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	treatyID := types.MustTreatyID("00000000-0000-0000-0000-000000000034")
+	treaty := NewTreaty(treatyID, localID.SystemURI(), remoteID.SystemURI(), []TreatyTerm{
+		{Scope: types.MustDomainScope("events"), Policy: "share-all", Symmetric: true},
+	})
+	treaty.Transition(event.TreatyStatusActive)
+	h.treaties.Put(treaty)
+
+	newTerms := []TreatyTerm{
+		{Scope: types.MustDomainScope("events"), Policy: "share-limited", Symmetric: false},
+		{Scope: types.MustDomainScope("trust"), Policy: "read-only", Symmetric: true},
+	}
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000812"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Treaty",
+		Payload: TreatyPayload{
+			TreatyID: treatyID,
+			Action:   "Modify",
+			Terms:    newTerms,
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	got, _ := h.treaties.Get(treatyID)
+	if len(got.Terms) != 2 {
+		t.Errorf("Terms count = %d, want 2", len(got.Terms))
+	}
+}
+
+func TestHandlerHandleIncomingAuthorityRequest(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	var receivedPayload *AuthorityRequestPayload
+	h.OnAuthorityRequest = func(from types.SystemURI, payload *AuthorityRequestPayload) error {
+		receivedPayload = payload
+		return nil
+	}
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000820"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "AuthorityRequest",
+		Payload: AuthorityRequestPayload{
+			Action:        "deploy",
+			Actor:         types.MustActorID("actor_00000000000000000000000000000001"),
+			Level:         event.AuthorityLevelRequired,
+			Justification: "production deploy",
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	if receivedPayload == nil {
+		t.Fatal("OnAuthorityRequest should have been called")
+	}
+	if receivedPayload.Action != "deploy" {
+		t.Errorf("action = %s, want deploy", receivedPayload.Action)
+	}
+}
+
+func TestHandlerHandleIncomingDiscover(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	var receivedQuery DiscoverQuery
+	h.OnDiscover = func(from types.SystemURI, query DiscoverQuery) ([]DiscoverResult, error) {
+		receivedQuery = query
+		return nil, nil
+	}
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000830"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Discover",
+		Payload: DiscoverPayload{
+			Query: DiscoverQuery{
+				Capabilities: []string{"proof", "treaty"},
+				MinTrust:     types.Some(types.MustScore(0.3)),
+			},
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	if len(receivedQuery.Capabilities) != 2 {
+		t.Errorf("query capabilities count = %d, want 2", len(receivedQuery.Capabilities))
+	}
+}
+
+func TestValidateProofChainSegment(t *testing.T) {
+	_, events := setupStoreWithEvents(t, 3)
+
+	payload := &ProofPayload{
+		ProofType: event.ProofTypeChainSegment,
+		Data: &ChainSegmentProof{
+			Events:    events,
+			StartHash: events[0].PrevHash(),
+			EndHash:   events[len(events)-1].Hash(),
+		},
+	}
+	valid, err := ValidateProof(payload)
+	if err != nil {
+		t.Fatalf("ValidateProof: %v", err)
+	}
+	if !valid {
+		t.Error("expected valid chain segment proof")
+	}
+}
+
+func TestValidateProofEventExistence(t *testing.T) {
+	_, events := setupStoreWithEvents(t, 3)
+	evt := events[1]
+
+	payload := &ProofPayload{
+		ProofType: event.ProofTypeEventExistence,
+		Data: &EventExistenceProof{
+			Event:       evt,
+			PrevHash:    evt.PrevHash(),
+			NextHash:    types.Some(events[2].Hash()),
+			Position:    1,
+			ChainLength: 3,
+		},
+	}
+	valid, err := ValidateProof(payload)
+	if err != nil {
+		t.Fatalf("ValidateProof: %v", err)
+	}
+	if !valid {
+		t.Error("expected valid event existence proof")
+	}
+}
+
+func TestValidateProofInvalidProof(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	// Send an invalid proof (zero-length chain summary).
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000840"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Proof",
+		Payload: ProofPayload{
+			ProofType: event.ProofTypeChainSummary,
+			Data:      ChainSummaryProof{Length: 0},
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	if err := h.HandleIncoming(ctx, signed); err != nil {
+		t.Fatalf("HandleIncoming: %v", err)
+	}
+
+	// Trust should decrease for invalid proof.
+	peer, _ := h.peers.Get(remoteID.SystemURI())
+	if peer.Trust.Value() != 0.0 {
+		t.Errorf("trust should stay at 0 (can't go negative), got %v", peer.Trust.Value())
+	}
+}
+
+func TestHandlerHandleIncomingTreatyNotFound(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000850"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            "Treaty",
+		Payload: TreatyPayload{
+			TreatyID: types.MustTreatyID("00000000-0000-0000-0000-000000000099"),
+			Action:   "Accept",
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected error for treaty not found")
 	}
 }
