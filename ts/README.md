@@ -51,7 +51,7 @@ console.log(result.valid); // true
 
 ## Conformance
 
-This package produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs.
+This package produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 124 tests including conformance hash vectors.
 
 ## Links
 

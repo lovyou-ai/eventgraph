@@ -47,7 +47,7 @@ Console.WriteLine(result.Valid); // True
 
 ## Conformance
 
-This package produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 87 tests including 3 conformance hash vectors.
+This package produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 94 tests including conformance hash vectors.
 
 ## Links
 

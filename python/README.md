@@ -12,24 +12,24 @@ pip install lovyou-eventgraph
 
 ```python
 from eventgraph import (
-    ActorId, EventType, ConversationId, NoopSigner,
-    EventFactory, InMemoryStore,
+    ActorID, EventType, ConversationID, NoopSigner,
+    create_bootstrap, create_event, InMemoryStore,
 )
 
 # Create store and bootstrap
 store = InMemoryStore()
 signer = NoopSigner()
-source = ActorId("actor_alice")
-boot = EventFactory.create_bootstrap(source, signer)
+source = ActorID("actor_alice")
+boot = create_bootstrap(source, signer)
 store.append(boot)
 
 # Record an event — hash-chained and causally linked
-ev = EventFactory.create_event(
+ev = create_event(
     event_type=EventType("trust.updated"),
     source=source,
     content={"score": 0.85, "domain": "code_review"},
     causes=[boot.id],
-    conversation_id=ConversationId("conv_1"),
+    conversation_id=ConversationID("conv_1"),
     prev_hash=boot.hash,
     signer=signer,
 )
@@ -51,7 +51,7 @@ assert result.valid
 
 ## Conformance
 
-This package produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 124 tests including 24 conformance vectors.
+This package produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 135 tests including conformance vectors.
 
 ## Links
 

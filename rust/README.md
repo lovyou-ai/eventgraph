@@ -58,7 +58,7 @@ assert!(result.valid);
 
 ## Conformance
 
-This crate produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 73 tests including 3 conformance hash vectors.
+This crate produces identical SHA-256 hashes to the Go reference implementation for the same canonical form inputs. 79 tests including conformance hash vectors.
 
 ## Links
 
