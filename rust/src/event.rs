@@ -116,7 +116,7 @@ pub struct Event {
     pub event_type: EventType,
     pub timestamp_nanos: u64,
     pub source: ActorId,
-    content: BTreeMap<String, Value>,
+    pub(crate) content: BTreeMap<String, Value>,
     pub causes: NonEmpty<EventId>,
     pub conversation_id: ConversationId,
     pub hash: Hash,

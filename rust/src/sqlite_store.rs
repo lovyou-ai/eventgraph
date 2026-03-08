@@ -3,7 +3,7 @@
 //! Optional — only used when the `sqlite` feature is enabled.
 //! Satisfies the Store trait with persistent storage.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use rusqlite::{params, Connection};
@@ -47,29 +47,22 @@ fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<Event> {
     let signature: Vec<u8> = row.get(11)?;
 
     let causes: Vec<String> = serde_json::from_str(&causes_json).unwrap_or_default();
-    let cause_ids: Vec<EventId> = causes.into_iter().map(|c| EventId::new(&c)).collect();
+    let cause_ids: Vec<EventId> = causes.into_iter().map(|c| EventId::new(&c).unwrap()).collect();
     let content: std::collections::BTreeMap<String, serde_json::Value> =
         serde_json::from_str(&content_json).unwrap_or_default();
 
-    let sig_array: [u8; 64] = {
-        let mut arr = [0u8; 64];
-        let len = signature.len().min(64);
-        arr[..len].copy_from_slice(&signature[..len]);
-        arr
-    };
-
     Ok(Event {
         version: version as u32,
-        id: EventId::new(&event_id),
-        event_type: EventType::new(&event_type),
+        id: EventId::new(&event_id).unwrap(),
+        event_type: EventType::new(&event_type).unwrap(),
         timestamp_nanos: timestamp_nanos as u64,
-        source: ActorId::new(&source),
+        source: ActorId::new(&source).unwrap(),
         content,
-        causes: crate::types::NonEmpty::of(cause_ids),
-        conversation_id: ConversationId::new(&conversation_id),
-        hash: Hash::new(&hash),
-        prev_hash: Hash::new(&prev_hash),
-        signature: Signature::new(sig_array),
+        causes: crate::types::NonEmpty::of(cause_ids).unwrap(),
+        conversation_id: ConversationId::new(&conversation_id).unwrap(),
+        hash: Hash::new(&hash).unwrap(),
+        prev_hash: Hash::new(&prev_hash).unwrap(),
+        signature: Signature::new(signature).unwrap(),
     })
 }
 
@@ -308,7 +301,7 @@ impl Store for SqliteStore {
         let causes_json =
             serde_json::to_string(&event.causes.iter().map(|c| c.value()).collect::<Vec<_>>())
                 .unwrap();
-        let content_json = serde_json::to_string(&event.content).unwrap();
+        let content_json = serde_json::to_string(&event.content()).unwrap();
 
         conn.execute(
             "INSERT INTO events (event_id, event_type, version, timestamp_nanos, source, content, causes, conversation_id, hash, prev_hash, signature) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
@@ -323,7 +316,7 @@ impl Store for SqliteStore {
                 event.conversation_id.value(),
                 event.hash.value(),
                 event.prev_hash.value(),
-                event.signature.data().to_vec(),
+                event.signature.bytes().to_vec(),
             ],
         ).map_err(|e| EventGraphError::StoreUnavailable { detail: e.to_string() })?;
 

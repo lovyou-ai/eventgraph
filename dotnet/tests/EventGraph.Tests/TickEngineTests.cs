@@ -124,6 +124,235 @@ public class TickEngineTests
         Assert.Equal(new[] { "low", "mid", "high" }, order.ToArray());
     }
 
+    // --- Layer constraint tests ---
+
+    [Fact]
+    public void LayerConstraintBlocksUninvokedLowerLayer()
+    {
+        var order = new List<string>();
+        var l0 = new OrderTracker("layer0", 0, order);
+        var l1 = new OrderTracker("layer1", 1, order);
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { l0, l1 });
+
+        // Tick 1: Layer 0 runs, Layer 1 blocked
+        engine.Tick(new() { boot });
+        Assert.Equal(new[] { "layer0" }, order.ToArray());
+
+        // Tick 2: Layer 0 stable, Layer 1 now eligible
+        order.Clear();
+        engine.Tick(new() { boot });
+        Assert.Contains("layer0", order);
+        Assert.Contains("layer1", order);
+        Assert.True(order.IndexOf("layer0") < order.IndexOf("layer1"));
+    }
+
+    [Fact]
+    public void LayerConstraintVacuouslyTrueForSparseLayers()
+    {
+        var invoked = 0;
+        var l1Only = new DelegatePrimitive("l1_only", 1, (_, _, _) =>
+        {
+            invoked++;
+            return new();
+        });
+
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { l1Only });
+        engine.Tick(new() { boot });
+        Assert.Equal(1, invoked);
+    }
+
+    [Fact]
+    public void LayerConstraintBlockedByDormantLowerLayer()
+    {
+        var l1Invoked = 0;
+        var l0 = new DelegatePrimitive("dormant_l0", 0, (_, _, _) => new());
+        var l1 = new DelegatePrimitive("active_l1", 1, (_, _, _) =>
+        {
+            l1Invoked++;
+            return new();
+        });
+
+        var reg = new PrimitiveRegistry();
+        var store = new InMemoryStore();
+        var boot = EventFactory.CreateBootstrap(new ActorId("system"), new NoopSigner());
+        store.Append(boot);
+
+        reg.Register(l0); // Don't activate — stays Dormant
+        reg.Register(l1);
+        reg.Activate(l1.Id);
+
+        var engine = new TickEngine(reg, store);
+        engine.Tick(new() { boot });
+
+        Assert.Equal(0, l1Invoked);
+    }
+
+    // --- Deferred mutations tests ---
+
+    [Fact]
+    public void DeferredMutationsNotVisibleBetweenWaves()
+    {
+        var stateValuesSeen = new List<object?>();
+        var callCount = 0;
+        var pid = new PrimitiveId("stateful");
+
+        var stateful = new DelegatePrimitive("stateful", 0, (tick, events, snapshot) =>
+        {
+            callCount++;
+            var ps = snapshot.Primitives.GetValueOrDefault("stateful");
+            stateValuesSeen.Add(ps?.State.GetValueOrDefault("count"));
+
+            if (events.Count == 0) return new();
+
+            var result = new List<Mutation>
+            {
+                new UpdateStateMutation(pid, "count", callCount),
+            };
+
+            if (callCount == 1)
+            {
+                result.Add(new AddEventMutation(
+                    new EventType("test.ripple"), new ActorId("stateful"),
+                    new(), new List<EventId> { events[0].Id },
+                    new ConversationId("conv_t")));
+            }
+
+            return result;
+        });
+
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { stateful });
+        var r = engine.Tick(new() { boot });
+
+        Assert.True(r.Waves >= 2);
+        // On wave 0, state should be null (not yet set)
+        Assert.Null(stateValuesSeen[0]);
+        // On wave 1, UpdateState from wave 0 was deferred, so still null
+        if (stateValuesSeen.Count > 1)
+            Assert.Null(stateValuesSeen[1]);
+    }
+
+    [Fact]
+    public void MixedMutationsAddEventAndUpdateState()
+    {
+        var emitted = false;
+        var pid = new PrimitiveId("mixed");
+
+        var mixed = new DelegatePrimitive("mixed", 0, (tick, events, snapshot) =>
+        {
+            if (events.Count == 0) return new();
+
+            var result = new List<Mutation>
+            {
+                new UpdateStateMutation(pid, "processed", true),
+                new UpdateActivationMutation(pid, new Activation(0.9)),
+            };
+
+            if (!emitted)
+            {
+                emitted = true;
+                result.Add(new AddEventMutation(
+                    new EventType("test.mixed"), new ActorId("mixed"),
+                    new(), new List<EventId> { events[0].Id },
+                    new ConversationId("conv_t")));
+            }
+
+            return result;
+        });
+
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { mixed });
+        var r = engine.Tick(new() { boot });
+
+        // AddEvent (eager) + UpdateState + UpdateActivation (deferred)
+        Assert.True(r.Mutations >= 3);
+    }
+
+    // --- UpdateLifecycle mutation ---
+
+    [Fact]
+    public void UpdateLifecycleMutation()
+    {
+        var invoked = 0;
+        var pid = new PrimitiveId("updater");
+
+        var updater = new DelegatePrimitive("updater", 0, (_, _, _) =>
+        {
+            invoked++;
+            return new List<Mutation>
+            {
+                new UpdateLifecycleMutation(pid, Lifecycle.Suspending)
+            };
+        });
+
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { updater });
+
+        var r1 = engine.Tick(new() { boot });
+        Assert.True(r1.Mutations >= 1);
+
+        // Tick 2: primitive is now Suspending, should NOT be eligible
+        var r2 = engine.Tick(new() { boot });
+        Assert.Equal(0, r2.Mutations);
+        Assert.Equal(1, invoked);
+    }
+
+    // --- Subscription filtering ---
+
+    [Fact]
+    public void SubscriptionFilteringNoMatch()
+    {
+        var receivedCounts = new List<int>();
+
+        var watcher = new DelegatePrimitive("watcher", 0, (_, events, _) =>
+        {
+            receivedCounts.Add(events.Count);
+            return new();
+        }, new List<SubscriptionPattern> { new("trust.*") });
+
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { watcher });
+        engine.Tick(new() { boot });
+        Assert.Equal(0, receivedCounts[0]);
+    }
+
+    [Fact]
+    public void NoSubscriptionsGetsNoEvents()
+    {
+        var receivedCounts = new List<int>();
+
+        var nosubs = new DelegatePrimitive("nosubs", 0, (_, events, _) =>
+        {
+            receivedCounts.Add(events.Count);
+            return new();
+        }, new List<SubscriptionPattern>());
+
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { nosubs });
+        engine.Tick(new() { boot });
+        Assert.Equal(0, receivedCounts[0]);
+    }
+
+    // --- Wave limit ---
+
+    [Fact]
+    public void WaveLimitWithCustomConfig()
+    {
+        var always = new DelegatePrimitive("always", 0, (_, events, _) =>
+        {
+            if (events.Count == 0) return new();
+            return new List<Mutation>
+            {
+                new AddEventMutation(new EventType("test.always"), new ActorId("a"),
+                    new(), new List<EventId> { events[0].Id },
+                    new ConversationId("c"))
+            };
+        });
+
+        var config = new TickConfig(MaxWavesPerTick: 5);
+        var (_, _, engine, boot) = Setup(new IPrimitive[] { always }, config);
+        var r = engine.Tick(new() { boot });
+        Assert.Equal(5, r.Waves);
+        Assert.False(r.Quiesced);
+    }
+
+    // --- Helper classes ---
+
     private class InfiniteEmitter : IPrimitive
     {
         public PrimitiveId Id { get; } = new("infinite");
@@ -162,5 +391,27 @@ public class TickEngineTests
             _order.Add(Id.Value);
             return new();
         }
+    }
+
+    private class DelegatePrimitive : IPrimitive
+    {
+        public PrimitiveId Id { get; }
+        public Layer Layer { get; }
+        public List<SubscriptionPattern> Subscriptions { get; }
+        public Cadence Cadence { get; } = new(1);
+        private readonly Func<int, List<Event>, Snapshot, List<Mutation>> _process;
+
+        public DelegatePrimitive(string name, int layer,
+            Func<int, List<Event>, Snapshot, List<Mutation>> process,
+            List<SubscriptionPattern>? subscriptions = null)
+        {
+            Id = new PrimitiveId(name);
+            Layer = new Layer(layer);
+            Subscriptions = subscriptions ?? new() { new SubscriptionPattern("*") };
+            _process = process;
+        }
+
+        public List<Mutation> Process(int tick, List<Event> events, Snapshot snapshot)
+            => _process(tick, events, snapshot);
     }
 }

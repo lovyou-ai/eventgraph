@@ -6,6 +6,7 @@ package sqlitestore
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -210,7 +211,15 @@ func (s *SQLiteStore) insertEdge(e event.Edge) {
 
 func (s *SQLiteStore) getUnlocked(id types.EventID) (event.Event, error) {
 	row := s.db.QueryRow("SELECT * FROM events WHERE event_id = ?", id.Value())
-	return s.scanEvent(row)
+	ev, err := s.scanEvent(row)
+	if err != nil {
+		var notFound *store.EventNotFoundError
+		if errors.As(err, &notFound) {
+			return event.Event{}, &store.EventNotFoundError{ID: id}
+		}
+		return event.Event{}, err
+	}
+	return ev, nil
 }
 
 func (s *SQLiteStore) scanEvent(row *sql.Row) (event.Event, error) {
@@ -231,7 +240,10 @@ func (s *SQLiteStore) scanEvent(row *sql.Row) (event.Event, error) {
 	err := row.Scan(&position, &eventID, &eventType, &version, &timestampNs,
 		&source, &contentJSON, &causesJSON, &conversationID, &hash, &prevHash, &sig)
 	if err != nil {
-		return event.Event{}, &store.EventNotFoundError{ID: types.MustEventID(eventID)}
+		if err == sql.ErrNoRows {
+			return event.Event{}, &store.EventNotFoundError{}
+		}
+		return event.Event{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan event: %v", err)}
 	}
 
 	var causeStrs []string

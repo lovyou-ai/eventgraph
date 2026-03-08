@@ -12,6 +12,7 @@ pub enum EventGraphError {
     ActorNotFound { actor_id: String },
     ActorKeyNotFound { key_hex: String },
     IntelligenceUnavailable,
+    StoreUnavailable { detail: String },
 }
 
 impl fmt::Display for EventGraphError {
@@ -37,6 +38,8 @@ impl fmt::Display for EventGraphError {
                 write!(f, "Actor not found for public key {key_hex}"),
             Self::IntelligenceUnavailable =>
                 write!(f, "intelligence unavailable: no Intelligence configured"),
+            Self::StoreUnavailable { detail } =>
+                write!(f, "store unavailable: {detail}"),
         }
     }
 }

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\EventGraph\EventGraph.csproj" />
+    <ProjectReference Include="..\..\src\EventGraph.Sqlite\EventGraph.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>
