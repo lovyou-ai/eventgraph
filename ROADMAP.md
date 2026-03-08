@@ -315,7 +315,7 @@ Sovereign systems communicating across graph boundaries.
 
 Each language package must pass the language-agnostic conformance test suite.
 
-### Rust
+### Rust — NEEDED (requires Rust toolchain)
 - [ ] Core event types + hash chain
 - [ ] Store trait + InMemory implementation
 - [ ] Bus
