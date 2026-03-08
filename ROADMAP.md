@@ -257,15 +257,13 @@ The subscription contracts for all 201 primitives are specified in `docs/primiti
 
 13 end-to-end scenarios exercising the full primitive stack through concrete use cases. Each scenario uses social grammar operations + direct event recording through a domain-specific story. All tests in `go/pkg/integration/`.
 
-Note: Scenario 5 (Supply Chain) is simplified to single-system provenance since EGIP is not yet built. It will be expanded when EGIP is implemented in Phase 5.
-
 | # | Scenario | Product Graph | Status |
 |---|----------|--------------|--------|
 | 1 | [AI Agent Audit Trail](docs/tests/primitives/01-agent-audit-trail.md) | Work / Ethics | DONE |
 | 2 | [Freelancer Reputation](docs/tests/primitives/02-freelancer-reputation.md) | Market | DONE |
 | 3 | [Consent-Based Journal](docs/tests/primitives/03-consent-journal.md) | Relationship | DONE |
 | 4 | [Community Governance](docs/tests/primitives/04-community-governance.md) | Governance | DONE |
-| 5 | [Supply Chain Transparency](docs/tests/primitives/05-supply-chain.md) | Work | DONE (single-system, EGIP deferred) |
+| 5 | [Supply Chain Transparency](docs/tests/primitives/05-supply-chain.md) | Work | DONE (multi-system EGIP: 3 sovereign graphs, treaties, CGERs, proofs, trust) |
 | 6 | [Research Integrity](docs/tests/primitives/06-research-integrity.md) | Research | DONE |
 | 7 | [Creator Provenance](docs/tests/primitives/07-creator-provenance.md) | Culture | DONE |
 | 8 | [Family Decision Log](docs/tests/primitives/08-family-decision-log.md) | Social | DONE |
@@ -309,7 +307,7 @@ Sovereign systems communicating across graph boundaries.
 - [x] `go/pkg/protocol/egip/transport.go` — ITransport interface (pluggable: HTTP, WebSocket, gRPC, etc.)
 - [x] `go/pkg/protocol/egip/errors.go` — 7 typed EGIP errors with EGIPError marker interface
 - [x] `go/pkg/protocol/egip/handler.go` — Protocol handler (HELLO handshake, message dispatch, replay dedup, trust updates), TreatyStore, EnvelopeDedup
-- [x] `go/pkg/protocol/egip/egip_test.go` — 71 tests, 87.2% coverage
+- [x] `go/pkg/protocol/egip/egip_test.go` — 75 tests, 86.9% coverage
 
 ---
 
