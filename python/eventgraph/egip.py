@@ -204,13 +204,24 @@ class SystemIdentity:
     it is a test/development implementation. For production, use an
     Ed25519-backed IIdentity implementation with the `cryptography` or
     `nacl` library.
+
+    A module-level registry maps public keys to private keys so that
+    cross-system signature verification works (any SystemIdentity can
+    verify signatures produced by any other SystemIdentity in the same
+    process). This is acceptable because the HMAC scheme is already
+    test/dev only.
     """
+
+    # Registry: public_key bytes -> private_key bytes
+    _key_registry: dict[bytes, bytes] = {}
 
     def __init__(self, uri: SystemURI, public_key: PublicKey, private_key: bytes) -> None:
         self._uri = uri
         self._public_key = public_key
         self._private_key = private_key
         self._created_at = time.time()
+        # Register so any identity can verify our signatures
+        SystemIdentity._key_registry[public_key.bytes_] = private_key
 
     @staticmethod
     def generate(uri: SystemURI) -> SystemIdentity:
@@ -238,16 +249,27 @@ class SystemIdentity:
         sig_bytes = mac + mac  # 32 + 32 = 64
         return Signature(sig_bytes)
 
+    @staticmethod
+    def _sign_with_key(private_key: bytes, data: bytes) -> Signature:
+        """Compute an HMAC-SHA256 signature using the given private key."""
+        mac = hmac.new(private_key, data, hashlib.sha256).digest()
+        return Signature(mac + mac)
+
     def verify(self, public_key: PublicKey, data: bytes, signature: Signature) -> bool:
         """Verify a signature.
 
-        For HMAC-based identity, verification requires knowing the private key.
-        We check if the signature matches what this identity would produce.
-        For cross-system verification, a shared-secret or lookup mechanism
-        would be needed. This simplified version checks against our own key.
+        Looks up the private key associated with the given public key in
+        the process-wide registry, then recomputes the HMAC to check the
+        signature. Falls back to checking against our own key if the
+        public key is not in the registry (self-verification).
         """
         try:
-            expected = self.sign(data)
+            priv = SystemIdentity._key_registry.get(public_key.bytes_)
+            if priv is not None:
+                expected = SystemIdentity._sign_with_key(priv, data)
+            else:
+                # Fallback: assume it's our own key
+                expected = self.sign(data)
             return hmac.compare_digest(expected.bytes_, signature.bytes_)
         except Exception:
             return False
