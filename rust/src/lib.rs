@@ -9,3 +9,4 @@ pub mod grammar;
 pub mod actor;
 pub mod trust;
 pub mod decision;
+pub mod authority;

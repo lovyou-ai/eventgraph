@@ -1,5 +1,13 @@
 """EventGraph — hash-chained, append-only, causal event graph."""
 
+from .authority import (
+    AuthorityChain,
+    AuthorityLink,
+    AuthorityPolicy,
+    AuthorityResult,
+    DefaultAuthorityChain,
+    matches_action,
+)
 from .actor import (
     Actor,
     ActorFilter,

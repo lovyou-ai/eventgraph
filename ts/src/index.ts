@@ -9,3 +9,4 @@ export * from "./grammar.js";
 export * from "./actor.js";
 export * from "./trust.js";
 export * from "./decision.js";
+export * from "./authority.js";
