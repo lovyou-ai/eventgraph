@@ -8,6 +8,7 @@ pub enum EventGraphError {
     InvalidTransition { from: String, to: String },
     EventNotFound { event_id: String },
     ChainIntegrity { position: usize, detail: String },
+    GrammarViolation { detail: String },
 }
 
 impl fmt::Display for EventGraphError {
@@ -25,6 +26,8 @@ impl fmt::Display for EventGraphError {
                 write!(f, "Event {event_id} not found"),
             Self::ChainIntegrity { position, detail } =>
                 write!(f, "Chain integrity violation at position {position}: {detail}"),
+            Self::GrammarViolation { detail } =>
+                write!(f, "Grammar violation: {detail}"),
         }
     }
 }

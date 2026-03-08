@@ -5,3 +5,4 @@ pub mod store;
 pub mod bus;
 pub mod primitive;
 pub mod tick;
+pub mod grammar;

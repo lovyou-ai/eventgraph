@@ -42,6 +42,7 @@ from .primitive import (
     UpdateLifecycle,
     UpdateState,
 )
+from .grammar import Grammar
 from .store import ChainVerification, InMemoryStore, Store
 from .tick import TickConfig, TickEngine, TickResult
 from .types import (

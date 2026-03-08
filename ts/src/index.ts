@@ -5,3 +5,4 @@ export * from "./store.js";
 export * from "./bus.js";
 export * from "./primitive.js";
 export * from "./tick.js";
+export * from "./grammar.js";
