@@ -206,9 +206,9 @@ Published to every ecosystem developers already work in:
 |----------|---------|-------|------|
 | Go | `go get github.com/lovyou-ai/eventgraph/go` | 800+ (reference) | `go/` |
 | Python | `pip install lovyou-eventgraph` | 427 | `python/` |
-| .NET | `dotnet add package LovYou.EventGraph` | 367 | `dotnet/` |
-| Rust | `cargo add eventgraph` | 321 | `rust/` |
-| TypeScript | `npm install @lovyou-ai/eventgraph` | 425 | `ts/` |
+| .NET | `dotnet add package LovYou.EventGraph` | 381 | `dotnet/` |
+| Rust | `cargo add eventgraph` | 335 | `rust/` |
+| TypeScript | `npm install @lovyou-ai/eventgraph` | 479 | `ts/` |
 
 All implementations pass the language-agnostic conformance test suite — identical SHA-256 hashes for the same canonical form inputs. Each implements the same interfaces native to its ecosystem: types, event, store, bus, primitive, tick engine.
 
