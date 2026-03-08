@@ -6,6 +6,7 @@ pub mod bus;
 pub mod primitive;
 pub mod tick;
 pub mod grammar;
+pub mod compositions;
 pub mod actor;
 pub mod trust;
 pub mod decision;

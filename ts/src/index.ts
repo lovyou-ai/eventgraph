@@ -6,6 +6,7 @@ export * from "./bus.js";
 export * from "./primitive.js";
 export * from "./tick.js";
 export * from "./grammar.js";
+export * from "./compositions.js";
 export * from "./actor.js";
 export * from "./trust.js";
 export * from "./decision.js";
