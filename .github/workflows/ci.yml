@@ -49,6 +49,17 @@ jobs:
       - run: dotnet test
         working-directory: dotnet
 
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build
+        working-directory: rust
+      - run: cargo test
+        working-directory: rust
+
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest

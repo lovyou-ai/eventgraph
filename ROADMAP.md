@@ -315,13 +315,13 @@ Sovereign systems communicating across graph boundaries.
 
 Each language package must pass the language-agnostic conformance test suite.
 
-### Rust — NEEDED (requires Rust toolchain)
-- [ ] Core event types + hash chain
-- [ ] Store trait + InMemory implementation
-- [ ] Bus
-- [ ] Primitive trait + Registry
-- [ ] Tick engine
-- [ ] Conformance tests passing
+### Rust — DONE (73 tests)
+- [x] Core event types + hash chain
+- [x] Store trait + InMemory implementation
+- [x] Bus
+- [x] Primitive trait + Registry
+- [x] Tick engine
+- [x] Conformance tests (3 tests matching Go reference hashes)
 
 ### Python — DONE (124 tests)
 - [x] Core event types + hash chain
@@ -361,10 +361,11 @@ Each language package must pass the language-agnostic conformance test suite.
 - [x] Tutorial: "Connect two event graphs" (`docs/tutorials/03-connect-two-graphs.md`)
 
 ### CI/CD & Publishing — DONE
-- [x] `.github/workflows/ci.yml` — Tests all languages on push/PR (Go, Python 3.10-3.13, .NET 9, TypeScript/Node 22)
+- [x] `.github/workflows/ci.yml` — Tests all languages on push/PR (Go, Python 3.10-3.13, .NET 9, Rust, TypeScript/Node 22)
 - [x] `.github/workflows/publish-npm.yml` — Publishes `@lovyou-ai/eventgraph` to npm on release
 - [x] `.github/workflows/publish-pypi.yml` — Publishes `eventgraph` to PyPI on release (trusted publisher)
 - [x] `.github/workflows/publish-nuget.yml` — Publishes `LovYou.EventGraph` to NuGet on release
+- [x] `.github/workflows/publish-crates.yml` — Publishes `eventgraph` to crates.io on release
 
 ---
 

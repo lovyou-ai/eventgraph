@@ -1,0 +1,19 @@
+[package]
+name = "eventgraph"
+version = "0.1.0"
+edition = "2024"
+description = "Hash-chained, append-only, causal event graph"
+license = "BSL-1.1"
+authors = ["LovYou AI <dev@lovyou.ai>"]
+keywords = ["eventgraph", "event-sourcing", "hash-chain", "causal-graph"]
+repository = "https://github.com/lovyou-ai/eventgraph"
+readme = "../README.md"
+
+[dependencies]
+sha2 = "0.10"
+uuid = { version = "1", features = ["v7"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+
+[dev-dependencies]
