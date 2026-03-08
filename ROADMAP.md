@@ -348,9 +348,9 @@ Each language package must pass the language-agnostic conformance test suite.
 - [x] `examples/minimal/` — Bootstrap, emit, derive, verify chain (runnable Go program)
 - [x] `examples/social/` — All 15 social grammar operations demonstrated
 - [x] `examples/multi-system/` — Two sovereign systems with EGIP: HELLO, treaty, CGERs, proof, trust
-- [ ] Tutorial: "Build your first primitive"
-- [ ] Tutorial: "Implement a custom store"
-- [ ] Tutorial: "Connect two event graphs"
+- [x] Tutorial: "Build your first primitive" (`docs/tutorials/01-first-primitive.md`)
+- [x] Tutorial: "Implement a custom store" (`docs/tutorials/02-custom-store.md`)
+- [x] Tutorial: "Connect two event graphs" (`docs/tutorials/03-connect-two-graphs.md`)
 
 ---
 
