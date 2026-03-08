@@ -200,3 +200,70 @@ fn conformance_edge_created_key_ordering_hash() {
     let hash = compute_hash(&canon);
     assert_eq!(hash.value(), "4e5c6710ca9325676663b4a66d2e82114fcd8fb49dbe5705795051e0b0be374c");
 }
+
+#[test]
+fn conformance_multiple_causes_sorted_hash() {
+    let mut content = BTreeMap::new();
+    content.insert("Message".to_string(), Value::String("derived from multiple causes".to_string()));
+    let content_json = canonical_content_json(&content);
+
+    let canon = canonical_form(
+        1, "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+        &[
+            "019462a0-0000-7000-8000-000000000003",
+            "019462a0-0000-7000-8000-000000000001",
+            "019462a0-0000-7000-8000-000000000002",
+        ],
+        "019462a0-0000-7000-8000-000000000004",
+        "grammar.derived",
+        "actor_00000000000000000000000000000001",
+        "conv_00000000000000000000000000000001",
+        1700000003000000000, &content_json,
+    );
+
+    let hash = compute_hash(&canon);
+    assert_eq!(hash.value(), "0c0e47ee89f8a7a21bb47f60d5f3887833297c945f946c8f3695ff2638f6cd50");
+}
+
+#[test]
+fn conformance_integer_float_content_json() {
+    let mut content = BTreeMap::new();
+    content.insert("Current".to_string(), Value::Number(serde_json::Number::from_f64(1.0).unwrap()));
+    content.insert("Domain".to_string(), Value::String("testing".to_string()));
+    content.insert("Previous".to_string(), Value::Number(serde_json::Number::from_f64(0.5).unwrap()));
+    let json = canonical_content_json(&content);
+    assert_eq!(json, r#"{"Current":1,"Domain":"testing","Previous":0.5}"#);
+}
+
+#[test]
+fn conformance_nested_objects() {
+    let mut nested = serde_json::Map::new();
+    nested.insert("Zebra".to_string(), Value::Number(1.into()));
+    nested.insert("Alpha".to_string(), Value::String("first".to_string()));
+    nested.insert("Middle".to_string(), Value::Null);
+
+    let mut content = BTreeMap::new();
+    content.insert("Outer".to_string(), Value::String("value".to_string()));
+    content.insert("Nested".to_string(), Value::Object(nested));
+    let json = canonical_content_json(&content);
+    assert_eq!(json, r#"{"Nested":{"Alpha":"first","Zebra":1},"Outer":"value"}"#);
+}
+
+#[test]
+fn conformance_number_formatting_edge_cases() {
+    let mut c = BTreeMap::new();
+    c.insert("v".to_string(), Value::Number(serde_json::Number::from_f64(2.0).unwrap()));
+    assert_eq!(canonical_content_json(&c), r#"{"v":2}"#);
+
+    c.clear();
+    c.insert("v".to_string(), Value::Number(serde_json::Number::from_f64(-1.0).unwrap()));
+    assert_eq!(canonical_content_json(&c), r#"{"v":-1}"#);
+
+    c.clear();
+    c.insert("v".to_string(), Value::Number(serde_json::Number::from_f64(0.0).unwrap()));
+    assert_eq!(canonical_content_json(&c), r#"{"v":0}"#);
+
+    c.clear();
+    c.insert("v".to_string(), Value::Number(serde_json::Number::from_f64(0.001).unwrap()));
+    assert_eq!(canonical_content_json(&c), r#"{"v":0.001}"#);
+}

@@ -41,10 +41,27 @@ pub fn canonical_content_json(content: &BTreeMap<String, Value>) -> String {
 
 fn canonical_value_to_string(v: &Value, s: &mut String) {
     match v {
+        Value::Object(map) => {
+            // Recursively sort keys and omit nulls in nested objects
+            let filtered: BTreeMap<&String, &Value> = map
+                .iter()
+                .filter(|(_, v)| !v.is_null())
+                .collect();
+            s.push('{');
+            let mut first = true;
+            for (k, val) in &filtered {
+                if !first { s.push(','); }
+                first = false;
+                s.push('"');
+                s.push_str(k);
+                s.push_str("\":");
+                canonical_value_to_string(val, s);
+            }
+            s.push('}');
+        }
         Value::Number(n) => {
             if let Some(f) = n.as_f64() {
                 if f == (f as i64) as f64 && f.is_finite() {
-                    // Integer-valued float: output without decimal point (Go compat)
                     s.push_str(&(f as i64).to_string());
                 } else {
                     s.push_str(&serde_json::to_string(v).unwrap());
@@ -52,6 +69,14 @@ fn canonical_value_to_string(v: &Value, s: &mut String) {
             } else {
                 s.push_str(&serde_json::to_string(v).unwrap());
             }
+        }
+        Value::Array(arr) => {
+            s.push('[');
+            for (i, item) in arr.iter().enumerate() {
+                if i > 0 { s.push(','); }
+                canonical_value_to_string(item, s);
+            }
+            s.push(']');
         }
         _ => s.push_str(&serde_json::to_string(v).unwrap()),
     }
