@@ -55,9 +55,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build
+      - run: cargo build --features sqlite
         working-directory: rust
-      - run: cargo test
+      - run: cargo test --features sqlite
         working-directory: rust
 
   typescript:

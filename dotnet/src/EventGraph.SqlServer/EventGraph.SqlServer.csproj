@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>LovYou.EventGraph.SqlServer</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>LovYou AI</Authors>
     <Description>SQL Server store for EventGraph</Description>
     <PackageTags>eventgraph;sqlserver;mssql;event-sourcing</PackageTags>

@@ -315,7 +315,7 @@ Sovereign systems communicating across graph boundaries.
 
 Each language package must pass the language-agnostic conformance test suite.
 
-### Rust — DONE (345 tests)
+### Rust — DONE (389 tests)
 - [x] Core event types + hash chain
 - [x] Store trait + InMemory implementation (with query methods: by_type, by_source, by_conversation, ancestors, descendants)
 - [x] Bus
@@ -336,7 +336,7 @@ Each language package must pass the language-agnostic conformance test suite.
 - [x] Postgres store (`postgres` crate, optional `postgres` feature)
 - [x] CLI tool (`eg` binary)
 
-### Python — DONE (462 tests)
+### Python — DONE (489 tests)
 - [x] Core event types + hash chain
 - [x] Store protocol + InMemory implementation (with query methods: by_type, by_source, by_conversation, ancestors, descendants)
 - [x] Bus
@@ -357,7 +357,7 @@ Each language package must pass the language-agnostic conformance test suite.
 - [x] Postgres store (`psycopg2`, optional)
 - [x] CLI tool (`eg` entry point)
 
-### TypeScript/npm — DONE (499 tests)
+### TypeScript/npm — DONE (530 tests)
 - [x] Core event types + hash chain
 - [x] Store interface + InMemory implementation (with query methods: byType, bySource, byConversation, ancestors, descendants)
 - [x] Bus
@@ -378,7 +378,7 @@ Each language package must pass the language-agnostic conformance test suite.
 - [x] Postgres store (`pg`, optional, async)
 - [x] CLI tool (`eg` binary via package.json)
 
-### .NET — DONE (406 tests)
+### .NET — DONE (437 tests)
 - [x] Core event types + hash chain
 - [x] IStore interface + InMemory implementation (with query methods: ByType, BySource, ByConversation, Ancestors, Descendants)
 - [x] Bus
@@ -467,7 +467,7 @@ All 201 primitives across 14 layers (L0: 45, L1-L12: 12 each, L13: 12). Each imp
 - [x] `.github/workflows/publish-nuget.yml` — Publishes `LovYou.EventGraph` to NuGet on release
 - [x] `.github/workflows/publish-crates.yml` — Publishes `eventgraph` to crates.io on release
 
-### Published Packages (v0.3.0)
+### Published Packages (v0.4.0)
 
 | Registry | Package | Install |
 |----------|---------|---------|
@@ -478,6 +478,32 @@ All 201 primitives across 14 layers (L0: 45, L1-L12: 12 each, L13: 12). Each imp
 | NuGet | `LovYou.EventGraph.Postgres` | `dotnet add package LovYou.EventGraph.Postgres` |
 | NuGet | `LovYou.EventGraph.SqlServer` | `dotnet add package LovYou.EventGraph.SqlServer` |
 | crates.io | `eventgraph` | `cargo add eventgraph` |
+
+---
+
+## Phase 8: Conformance Hardening & Tick Engine — DONE
+
+### Store Conformance Tests
+SQLite store conformance tests added for all languages (run without external databases):
+
+| Language | SQLite Tests | Notes |
+|----------|-------------|-------|
+| **Go** | 25 (shared `RunConformanceSuite`) | MySQL test file also added (skips without `EVENTGRAPH_MYSQL_URL`) |
+| **Rust** | 20 | Fixed `sqlite_store.rs` compilation, added `StoreUnavailable` error variant |
+| **Python** | 18 (pre-existing) | stdlib `sqlite3`, always runs |
+| **TypeScript** | 22 | `better-sqlite3` dev dependency |
+| **.NET** | 22 | `Microsoft.Data.Sqlite`, separate `EventGraph.Sqlite` project reference |
+
+### Tick Engine Hardening
+All non-Go tick engines upgraded to match Go reference implementation:
+- [x] **Layer constraint**: Layer N blocked until all Layer N-1 primitives are Active
+- [x] **Eager/deferred mutation split**: AddEvent applied between waves, UpdateState/Activation/Lifecycle deferred to end of tick
+- [x] **Snapshot refresh**: Rebuilt between waves so primitives see new events
+- [x] 9 new test cases per language: layer constraint (3), deferred mutations, mixed mutations, lifecycle mutation, subscription filtering (2), wave limit config
+
+### CI Updates
+- [x] SQLite store tests run in CI for all languages (no external DB required)
+- [x] Rust CI includes `--features sqlite` for SQLite store coverage
 
 ---
 

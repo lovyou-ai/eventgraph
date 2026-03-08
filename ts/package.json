@@ -1,6 +1,6 @@
 {
   "name": "@lovyou-ai/eventgraph",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Hash-chained, append-only, causal event graph",
   "main": "dist/index.js",
   "bin": {
