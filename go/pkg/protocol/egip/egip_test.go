@@ -582,9 +582,9 @@ func TestPeerStoreDecayAll(t *testing.T) {
 	// Build up trust to 0.05 (max single adjustment).
 	ps.UpdateTrust(uri, 0.05)
 
-	// Manually set LastSeen to 2 days ago to test decay.
+	// Manually set LastDecayedAt to 2 days ago to test decay.
 	ps.mu.Lock()
-	ps.peers[uri.Value()].LastSeen = time.Now().Add(-48 * time.Hour)
+	ps.peers[uri.Value()].LastDecayedAt = time.Now().Add(-48 * time.Hour)
 	ps.mu.Unlock()
 
 	ps.DecayAll()
@@ -600,7 +600,7 @@ func TestPeerStoreDecayAll(t *testing.T) {
 		t.Errorf("trust after decay = %v, want ~%v", got.Trust.Value(), expectedApprox)
 	}
 
-	// Calling DecayAll again immediately should not compound (LastSeen was updated).
+	// Calling DecayAll again immediately should not compound (LastDecayedAt was updated).
 	trustBefore := got.Trust.Value()
 	ps.DecayAll()
 	got2, _ := ps.Get(uri)
@@ -615,9 +615,9 @@ func TestPeerStoreDecayAllClampsToZero(t *testing.T) {
 	pubKey, _ := types.NewPublicKey(make([]byte, 32))
 	ps.Register(uri, pubKey, nil, 1)
 
-	// Trust starts at 0.0, set LastSeen to long ago.
+	// Trust starts at 0.0, set LastDecayedAt to long ago.
 	ps.mu.Lock()
-	ps.peers[uri.Value()].LastSeen = time.Now().Add(-365 * 24 * time.Hour)
+	ps.peers[uri.Value()].LastDecayedAt = time.Now().Add(-365 * 24 * time.Hour)
 	ps.mu.Unlock()
 
 	ps.DecayAll()
@@ -1058,7 +1058,7 @@ func (m *mockTransport) Send(_ context.Context, to types.SystemURI, env *Envelop
 	}
 	return &ReceiptPayload{
 		EnvelopeID: env.ID,
-		Status:     "Delivered",
+		Status:     event.ReceiptStatusDelivered,
 	}, nil
 }
 
@@ -1087,18 +1087,15 @@ func TestHandlerHello(t *testing.T) {
 	ctx := context.Background()
 
 	remote := types.MustSystemURI("eg://remote")
-	record, err := h.Hello(ctx, remote)
+	err := h.Hello(ctx, remote)
 	if err != nil {
 		t.Fatalf("Hello: %v", err)
 	}
 
-	if record == nil {
-		t.Fatal("expected peer record")
-	}
 	if len(transport.sent) != 1 {
 		t.Fatalf("expected 1 sent envelope, got %d", len(transport.sent))
 	}
-	if transport.sent[0].Type != "Hello" {
+	if transport.sent[0].Type != event.MessageTypeHello {
 		t.Errorf("sent type = %s, want Hello", transport.sent[0].Type)
 	}
 }
@@ -1110,13 +1107,11 @@ func TestHandlerHelloTransportFailure(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := h.Hello(ctx, types.MustSystemURI("eg://unreachable"))
+	err := h.Hello(ctx, types.MustSystemURI("eg://unreachable"))
 	if err == nil {
 		t.Fatal("expected error for transport failure")
 	}
-	var transportErr *TransportFailureError
 	if _, ok := err.(*TransportFailureError); !ok {
-		_ = transportErr // appease linter
 		t.Errorf("expected TransportFailureError, got %T", err)
 	}
 }
@@ -1134,7 +1129,7 @@ func TestHandlerHandleIncomingHello(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000100"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Hello",
+		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
@@ -1178,7 +1173,7 @@ func TestHandlerHandleIncomingReplayRejected(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000200"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Hello",
+		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
@@ -1218,7 +1213,7 @@ func TestHandlerHandleIncomingInvalidSignature(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000300"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Hello",
+		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
@@ -1254,7 +1249,7 @@ func TestHandlerHandleIncomingVersionIncompatible(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000400"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Hello",
+		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
@@ -1298,7 +1293,7 @@ func TestHandlerHandleIncomingMessage(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000500"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Message",
+		Type:            event.MessageTypeMessage,
 		Payload: MessagePayloadContent{
 			ContentType:    types.MustEventType("trust.updated"),
 			ConversationID: types.None[types.ConversationID](),
@@ -1332,10 +1327,10 @@ func TestHandlerHandleIncomingReceipt(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000600"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Receipt",
+		Type:            event.MessageTypeReceipt,
 		Payload: ReceiptPayload{
 			EnvelopeID: types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"),
-			Status:     "Processed",
+			Status:     event.ReceiptStatusProcessed,
 		},
 		Timestamp: time.Now(),
 		InReplyTo: types.None[types.EnvelopeID](),
@@ -1365,7 +1360,7 @@ func TestHandlerHandleIncomingProof(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000700"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Proof",
+		Type:            event.MessageTypeProof,
 		Payload: ProofPayload{
 			ProofType: event.ProofTypeChainSummary,
 			Data: ChainSummaryProof{
@@ -1402,10 +1397,10 @@ func TestHandlerHandleIncomingTreatyPropose(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000800"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Treaty",
+		Type:            event.MessageTypeTreaty,
 		Payload: TreatyPayload{
 			TreatyID: treatyID,
-			Action:   "Propose",
+			Action:   event.TreatyActionPropose,
 			Terms: []TreatyTerm{
 				{Scope: types.MustDomainScope("events"), Policy: "share-all", Symmetric: true},
 			},
@@ -1446,10 +1441,10 @@ func TestHandlerHandleIncomingTreatyAccept(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000801"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Treaty",
+		Type:            event.MessageTypeTreaty,
 		Payload: TreatyPayload{
 			TreatyID: treatyID,
-			Action:   "Accept",
+			Action:   event.TreatyActionAccept,
 		},
 		Timestamp: time.Now(),
 		InReplyTo: types.None[types.EnvelopeID](),
@@ -1484,7 +1479,7 @@ func TestHandlerHandleIncomingUnknownSender(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000900"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Message",
+		Type:            event.MessageTypeMessage,
 		Payload: MessagePayloadContent{
 			ContentType: types.MustEventType("trust.updated"),
 		},
@@ -1505,7 +1500,10 @@ func TestHandlerHandleIncomingUnknownSender(t *testing.T) {
 }
 
 func TestGenerateUUID4Format(t *testing.T) {
-	uuid := generateUUID4()
+	uuid, err := generateUUID4()
+	if err != nil {
+		t.Fatalf("generateUUID4: %v", err)
+	}
 	if len(uuid) != 36 {
 		t.Errorf("UUID length = %d, want 36", len(uuid))
 	}
@@ -1520,7 +1518,7 @@ func TestHandlerHelloWithChainLength(t *testing.T) {
 	h.ChainLength = func() (int, error) { return 42, nil }
 
 	ctx := context.Background()
-	_, err := h.Hello(ctx, types.MustSystemURI("eg://remote"))
+	err := h.Hello(ctx, types.MustSystemURI("eg://remote"))
 	if err != nil {
 		t.Fatalf("Hello: %v", err)
 	}
@@ -1530,13 +1528,13 @@ func TestHandlerHelloRejected(t *testing.T) {
 	h, _, transport := makeTestHandler(t)
 	transport.onSend = func(_ types.SystemURI, _ *Envelope) (*ReceiptPayload, error) {
 		return &ReceiptPayload{
-			Status: "Rejected",
+			Status: event.ReceiptStatusRejected,
 			Reason: types.Some("go away"),
 		}, nil
 	}
 
 	ctx := context.Background()
-	_, err := h.Hello(ctx, types.MustSystemURI("eg://hostile"))
+	err := h.Hello(ctx, types.MustSystemURI("eg://hostile"))
 	if err == nil {
 		t.Fatal("expected error for rejected hello")
 	}
@@ -1557,10 +1555,10 @@ func TestHandlerHandleIncomingTreatySuspend(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000810"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Treaty",
+		Type:            event.MessageTypeTreaty,
 		Payload: TreatyPayload{
 			TreatyID: treatyID,
-			Action:   "Suspend",
+			Action:   event.TreatyActionSuspend,
 			Reason:   types.Some("maintenance"),
 		},
 		Timestamp: time.Now(),
@@ -1595,10 +1593,10 @@ func TestHandlerHandleIncomingTreatyTerminate(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000811"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Treaty",
+		Type:            event.MessageTypeTreaty,
 		Payload: TreatyPayload{
 			TreatyID: treatyID,
-			Action:   "Terminate",
+			Action:   event.TreatyActionTerminate,
 		},
 		Timestamp: time.Now(),
 		InReplyTo: types.None[types.EnvelopeID](),
@@ -1639,10 +1637,10 @@ func TestHandlerHandleIncomingTreatyModify(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000812"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Treaty",
+		Type:            event.MessageTypeTreaty,
 		Payload: TreatyPayload{
 			TreatyID: treatyID,
-			Action:   "Modify",
+			Action:   event.TreatyActionModify,
 			Terms:    newTerms,
 		},
 		Timestamp: time.Now(),
@@ -1678,7 +1676,7 @@ func TestHandlerHandleIncomingAuthorityRequest(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000820"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "AuthorityRequest",
+		Type:            event.MessageTypeAuthorityRequest,
 		Payload: AuthorityRequestPayload{
 			Action:        "deploy",
 			Actor:         types.MustActorID("actor_00000000000000000000000000000001"),
@@ -1705,14 +1703,16 @@ func TestHandlerHandleIncomingAuthorityRequest(t *testing.T) {
 }
 
 func TestHandlerHandleIncomingDiscover(t *testing.T) {
-	h, localID, _ := makeTestHandler(t)
+	h, localID, transport := makeTestHandler(t)
 	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
 	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
 
 	var receivedQuery DiscoverQuery
 	h.OnDiscover = func(from types.SystemURI, query DiscoverQuery) ([]DiscoverResult, error) {
 		receivedQuery = query
-		return nil, nil
+		return []DiscoverResult{
+			{SystemURI: types.MustSystemURI("eg://found"), TrustScore: types.MustScore(0.5)},
+		}, nil
 	}
 
 	env := &Envelope{
@@ -1720,7 +1720,7 @@ func TestHandlerHandleIncomingDiscover(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000830"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Discover",
+		Type:            event.MessageTypeDiscover,
 		Payload: DiscoverPayload{
 			Query: DiscoverQuery{
 				Capabilities: []string{"proof", "treaty"},
@@ -1740,6 +1740,18 @@ func TestHandlerHandleIncomingDiscover(t *testing.T) {
 
 	if len(receivedQuery.Capabilities) != 2 {
 		t.Errorf("query capabilities count = %d, want 2", len(receivedQuery.Capabilities))
+	}
+
+	// Verify a response envelope was sent back.
+	if len(transport.sent) != 1 {
+		t.Fatalf("expected 1 sent response, got %d", len(transport.sent))
+	}
+	resp := transport.sent[0]
+	if resp.Type != event.MessageTypeDiscover {
+		t.Errorf("response type = %s, want Discover", resp.Type)
+	}
+	if !resp.InReplyTo.IsSome() || resp.InReplyTo.Unwrap() != env.ID {
+		t.Error("response InReplyTo should reference the query envelope")
 	}
 }
 
@@ -1797,7 +1809,7 @@ func TestValidateProofInvalidProof(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000840"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Proof",
+		Type:            event.MessageTypeProof,
 		Payload: ProofPayload{
 			ProofType: event.ProofTypeChainSummary,
 			Data:      ChainSummaryProof{Length: 0},
@@ -1820,6 +1832,137 @@ func TestValidateProofInvalidProof(t *testing.T) {
 	}
 }
 
+func TestHandlerHandleIncomingStaleTimestamp(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000860"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            event.MessageTypeHello,
+		Payload: HelloPayload{
+			SystemURI:        remoteID.SystemURI(),
+			PublicKey:        remoteID.PublicKey(),
+			ProtocolVersions: []int{1},
+		},
+		Timestamp: time.Now().Add(-48 * time.Hour), // 2 days old
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected error for stale timestamp")
+	}
+}
+
+func TestHandlerHandleIncomingFutureTimestamp(t *testing.T) {
+	h, localID, _ := makeTestHandler(t)
+	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
+
+	env := &Envelope{
+		ProtocolVersion: 1,
+		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000861"),
+		From:            remoteID.SystemURI(),
+		To:              localID.SystemURI(),
+		Type:            event.MessageTypeHello,
+		Payload: HelloPayload{
+			SystemURI:        remoteID.SystemURI(),
+			PublicKey:        remoteID.PublicKey(),
+			ProtocolVersions: []int{1},
+		},
+		Timestamp: time.Now().Add(10 * time.Minute), // 10 min in future
+		InReplyTo: types.None[types.EnvelopeID](),
+	}
+
+	signed, _ := SignEnvelope(env, remoteID)
+	ctx := context.Background()
+
+	err := h.HandleIncoming(ctx, signed)
+	if err == nil {
+		t.Fatal("expected error for future timestamp")
+	}
+}
+
+func TestTreatyStoreApply(t *testing.T) {
+	ts := NewTreatyStore()
+	id := types.MustTreatyID("00000000-0000-0000-0000-000000000040")
+	a := types.MustSystemURI("eg://system-a")
+	b := types.MustSystemURI("eg://system-b")
+
+	treaty := NewTreaty(id, a, b, []TreatyTerm{
+		{Scope: types.MustDomainScope("events"), Policy: "share", Symmetric: true},
+	})
+	ts.Put(treaty)
+
+	err := ts.Apply(id, func(t *Treaty) error {
+		return t.Transition(event.TreatyStatusActive)
+	})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	got, _ := ts.Get(id)
+	if got.Status != event.TreatyStatusActive {
+		t.Errorf("status = %v, want Active", got.Status)
+	}
+}
+
+func TestTreatyStoreApplyNotFound(t *testing.T) {
+	ts := NewTreatyStore()
+	err := ts.Apply(types.MustTreatyID("00000000-0000-0000-0000-000000000099"), func(t *Treaty) error {
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected error for treaty not found")
+	}
+}
+
+func TestHandlerHelloChainLengthError(t *testing.T) {
+	h, _, _ := makeTestHandler(t)
+	h.ChainLength = func() (int, error) { return 0, fmt.Errorf("store unavailable") }
+
+	ctx := context.Background()
+	err := h.Hello(ctx, types.MustSystemURI("eg://remote"))
+	if err == nil {
+		t.Fatal("expected error for chain length failure")
+	}
+}
+
+func TestPeerStoreDecayUsesLastDecayedAt(t *testing.T) {
+	ps := NewPeerStore()
+	uri := types.MustSystemURI("eg://remote")
+	pubKey, _ := types.NewPublicKey(make([]byte, 32))
+	ps.Register(uri, pubKey, nil, 1)
+	ps.UpdateTrust(uri, 0.05)
+
+	// Set LastDecayedAt to 2 days ago, but LastSeen to now.
+	ps.mu.Lock()
+	ps.peers[uri.Value()].LastDecayedAt = time.Now().Add(-48 * time.Hour)
+	ps.mu.Unlock()
+
+	ps.DecayAll()
+
+	got, _ := ps.Get(uri)
+	// Decay should be 0.02 * 2 = 0.04, so trust should be ~0.01.
+	expected := 0.05 - (InterSystemDecayRate.Value() * 2.0)
+	if got.Trust.Value() < expected-0.005 || got.Trust.Value() > expected+0.005 {
+		t.Errorf("trust after decay = %v, want ~%v", got.Trust.Value(), expected)
+	}
+
+	// LastSeen should NOT have been modified by DecayAll.
+	ps.mu.RLock()
+	lastSeen := ps.peers[uri.Value()].LastSeen
+	ps.mu.RUnlock()
+	if time.Since(lastSeen) > 1*time.Second {
+		t.Error("DecayAll should not modify LastSeen")
+	}
+}
+
 func TestHandlerHandleIncomingTreatyNotFound(t *testing.T) {
 	h, localID, _ := makeTestHandler(t)
 	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
@@ -1830,10 +1973,10 @@ func TestHandlerHandleIncomingTreatyNotFound(t *testing.T) {
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000850"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
-		Type:            "Treaty",
+		Type:            event.MessageTypeTreaty,
 		Payload: TreatyPayload{
 			TreatyID: types.MustTreatyID("00000000-0000-0000-0000-000000000099"),
-			Action:   "Accept",
+			Action:   event.TreatyActionAccept,
 		},
 		Timestamp: time.Now(),
 		InReplyTo: types.None[types.EnvelopeID](),

@@ -5,10 +5,17 @@ import (
 	"crypto/rand"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/lovyou-ai/eventgraph/go/pkg/event"
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
+
+// MaxEnvelopeAge is the maximum age of an incoming envelope before it is
+// rejected as stale. This bounds the replay window even after dedup entries
+// are pruned.
+const MaxEnvelopeAge = 25 * time.Hour
 
 // Handler orchestrates EGIP protocol interactions: HELLO handshake,
 // message dispatch, replay deduplication, and trust updates.
@@ -54,20 +61,26 @@ func NewHandler(identity IIdentity, transport ITransport, peers *PeerStore, trea
 }
 
 // Hello performs the HELLO handshake with a remote system.
-// Sends a HELLO and expects a HELLO response.
-func (h *Handler) Hello(ctx context.Context, to types.SystemURI) (*PeerRecord, error) {
+// Sends a HELLO and expects a HELLO response. The peer is not registered
+// until the response HELLO arrives via HandleIncoming — this avoids storing
+// a partially-initialised record with a zero PublicKey.
+func (h *Handler) Hello(ctx context.Context, to types.SystemURI) error {
 	chainLen := 0
 	if h.ChainLength != nil {
 		var err error
 		chainLen, err = h.ChainLength()
 		if err != nil {
-			return nil, fmt.Errorf("chain length: %w", err)
+			return fmt.Errorf("chain length: %w", err)
 		}
 	}
 
-	envID, err := types.NewEnvelopeID(generateUUID4())
+	uuid, err := generateUUID4()
 	if err != nil {
-		return nil, fmt.Errorf("create envelope ID: %w", err)
+		return fmt.Errorf("generate envelope ID: %w", err)
+	}
+	envID, err := types.NewEnvelopeID(uuid)
+	if err != nil {
+		return fmt.Errorf("create envelope ID: %w", err)
 	}
 
 	env := &Envelope{
@@ -75,7 +88,7 @@ func (h *Handler) Hello(ctx context.Context, to types.SystemURI) (*PeerRecord, e
 		ID:              envID,
 		From:            h.identity.SystemURI(),
 		To:              to,
-		Type:            "Hello",
+		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        h.identity.SystemURI(),
 			PublicKey:        h.identity.PublicKey(),
@@ -89,32 +102,36 @@ func (h *Handler) Hello(ctx context.Context, to types.SystemURI) (*PeerRecord, e
 
 	signed, err := SignEnvelope(env, h.identity)
 	if err != nil {
-		return nil, fmt.Errorf("sign hello: %w", err)
+		return fmt.Errorf("sign hello: %w", err)
 	}
 
 	receipt, err := h.transport.Send(ctx, to, signed)
 	if err != nil {
 		h.peers.UpdateTrust(to, TrustImpactNoHelloResponse)
-		return nil, &TransportFailureError{To: to, Reason: err.Error()}
+		return &TransportFailureError{To: to, Reason: err.Error()}
 	}
 
-	if receipt != nil && receipt.Status == "Rejected" {
+	if receipt != nil && receipt.Status == event.ReceiptStatusRejected {
 		reason := ""
 		if receipt.Reason.IsSome() {
 			reason = receipt.Reason.Unwrap()
 		}
-		return nil, fmt.Errorf("hello rejected: %s", reason)
+		return fmt.Errorf("hello rejected: %s", reason)
 	}
 
-	// Register the peer. The response HELLO will update the peer with
-	// capabilities and negotiated version when it arrives via HandleIncoming.
-	record := h.peers.Register(to, types.PublicKey{}, nil, 0)
-	return record, nil
+	return nil
 }
 
-// HandleIncoming processes an incoming envelope: verifies signature,
-// deduplicates, dispatches to the appropriate handler, and updates trust.
+// HandleIncoming processes an incoming envelope: checks timestamp freshness,
+// deduplicates, verifies signature, dispatches to the appropriate handler,
+// and updates trust.
 func (h *Handler) HandleIncoming(ctx context.Context, env *Envelope) error {
+	// Timestamp freshness — reject stale envelopes even if dedup has pruned them.
+	age := time.Since(env.Timestamp)
+	if age > MaxEnvelopeAge || age < -5*time.Minute {
+		return fmt.Errorf("envelope timestamp out of range: age %v", age)
+	}
+
 	// Replay deduplication.
 	if !h.dedup.Check(env.ID) {
 		return &DuplicateEnvelopeError{EnvelopeID: env.ID}
@@ -123,9 +140,12 @@ func (h *Handler) HandleIncoming(ctx context.Context, env *Envelope) error {
 	// Look up the sender's public key.
 	peer, known := h.peers.Get(env.From)
 
-	// For HELLO messages, use the public key from the payload.
+	// For HELLO messages, use the public key from the payload (TOFU model).
+	// Note: this is Trust-On-First-Use. The first HELLO from a URI establishes
+	// the key binding. Callers who need authenticated introduction should
+	// pre-load keys into PeerStore before communication begins.
 	var pubKey types.PublicKey
-	if env.Type == "Hello" {
+	if env.Type == event.MessageTypeHello {
 		hello, ok := env.Payload.(HelloPayload)
 		if !ok {
 			return fmt.Errorf("invalid hello payload type: %T", env.Payload)
@@ -150,19 +170,19 @@ func (h *Handler) HandleIncoming(ctx context.Context, env *Envelope) error {
 
 	// Dispatch by message type.
 	switch env.Type {
-	case "Hello":
+	case event.MessageTypeHello:
 		return h.handleHello(env)
-	case "Message":
+	case event.MessageTypeMessage:
 		return h.handleMessage(env)
-	case "Receipt":
+	case event.MessageTypeReceipt:
 		return h.handleReceipt(env)
-	case "Proof":
+	case event.MessageTypeProof:
 		return h.handleProof(env)
-	case "Treaty":
+	case event.MessageTypeTreaty:
 		return h.handleTreaty(env)
-	case "AuthorityRequest":
+	case event.MessageTypeAuthorityRequest:
 		return h.handleAuthorityRequest(env)
-	case "Discover":
+	case event.MessageTypeDiscover:
 		return h.handleDiscover(ctx, env)
 	default:
 		return fmt.Errorf("unknown message type: %s", env.Type)
@@ -209,7 +229,7 @@ func (h *Handler) handleReceipt(env *Envelope) error {
 		return fmt.Errorf("invalid receipt payload type: %T", env.Payload)
 	}
 
-	if receipt.Status == "Processed" || receipt.Status == "Delivered" {
+	if receipt.Status == event.ReceiptStatusProcessed || receipt.Status == event.ReceiptStatusDelivered {
 		h.peers.UpdateTrust(env.From, TrustImpactReceiptOnTime)
 	}
 	return nil
@@ -241,45 +261,38 @@ func (h *Handler) handleTreaty(env *Envelope) error {
 	}
 
 	switch payload.Action {
-	case "Propose":
+	case event.TreatyActionPropose:
 		treaty := NewTreaty(payload.TreatyID, env.From, env.To, payload.Terms)
 		h.treaties.Put(treaty)
 		return nil
 
-	case "Accept":
-		treaty, ok := h.treaties.Get(payload.TreatyID)
-		if !ok {
-			return fmt.Errorf("treaty not found: %s", payload.TreatyID.Value())
-		}
-		if err := treaty.ApplyAction("Accept"); err != nil {
-			return err
-		}
-		h.treaties.Put(treaty)
-		h.peers.UpdateTrust(env.From, TrustImpactTreatyHonoured)
-		return nil
+	case event.TreatyActionAccept:
+		return h.treaties.Apply(payload.TreatyID, func(treaty *Treaty) error {
+			if err := treaty.ApplyAction(event.TreatyActionAccept); err != nil {
+				return err
+			}
+			h.peers.UpdateTrust(env.From, TrustImpactTreatyHonoured)
+			return nil
+		})
 
-	case "Suspend", "Terminate":
-		treaty, ok := h.treaties.Get(payload.TreatyID)
-		if !ok {
-			return fmt.Errorf("treaty not found: %s", payload.TreatyID.Value())
-		}
-		if err := treaty.ApplyAction(payload.Action); err != nil {
-			return err
-		}
-		h.treaties.Put(treaty)
-		return nil
+	case event.TreatyActionSuspend:
+		return h.treaties.Apply(payload.TreatyID, func(treaty *Treaty) error {
+			return treaty.ApplyAction(event.TreatyActionSuspend)
+		})
 
-	case "Modify":
-		treaty, ok := h.treaties.Get(payload.TreatyID)
-		if !ok {
-			return fmt.Errorf("treaty not found: %s", payload.TreatyID.Value())
-		}
-		if err := treaty.ApplyAction("Modify"); err != nil {
-			return err
-		}
-		treaty.Terms = payload.Terms
-		h.treaties.Put(treaty)
-		return nil
+	case event.TreatyActionTerminate:
+		return h.treaties.Apply(payload.TreatyID, func(treaty *Treaty) error {
+			return treaty.ApplyAction(event.TreatyActionTerminate)
+		})
+
+	case event.TreatyActionModify:
+		return h.treaties.Apply(payload.TreatyID, func(treaty *Treaty) error {
+			if err := treaty.ApplyAction(event.TreatyActionModify); err != nil {
+				return err
+			}
+			treaty.Terms = payload.Terms
+			return nil
+		})
 
 	default:
 		return fmt.Errorf("unknown treaty action: %s", payload.Action)
@@ -304,12 +317,49 @@ func (h *Handler) handleDiscover(ctx context.Context, env *Envelope) error {
 		return fmt.Errorf("invalid discover payload type: %T", env.Payload)
 	}
 
-	if h.OnDiscover != nil {
-		_, err := h.OnDiscover(env.From, payload.Query)
-		if err != nil {
-			return fmt.Errorf("discover handler: %w", err)
-		}
+	if h.OnDiscover == nil {
+		return nil
 	}
+
+	results, err := h.OnDiscover(env.From, payload.Query)
+	if err != nil {
+		return fmt.Errorf("discover handler: %w", err)
+	}
+
+	// Send discovery results back to the querying system.
+	uuid, err := generateUUID4()
+	if err != nil {
+		return fmt.Errorf("generate response envelope ID: %w", err)
+	}
+	respID, err := types.NewEnvelopeID(uuid)
+	if err != nil {
+		return fmt.Errorf("create response envelope ID: %w", err)
+	}
+
+	resp := &Envelope{
+		ProtocolVersion: env.ProtocolVersion,
+		ID:              respID,
+		From:            h.identity.SystemURI(),
+		To:              env.From,
+		Type:            event.MessageTypeDiscover,
+		Payload: DiscoverPayload{
+			Query:   payload.Query,
+			Results: results,
+		},
+		Timestamp: time.Now(),
+		InReplyTo: types.Some(env.ID),
+	}
+
+	signed, err := SignEnvelope(resp, h.identity)
+	if err != nil {
+		return fmt.Errorf("sign discover response: %w", err)
+	}
+
+	_, err = h.transport.Send(ctx, env.From, signed)
+	if err != nil {
+		return fmt.Errorf("send discover response: %w", err)
+	}
+
 	return nil
 }
 
@@ -344,8 +394,23 @@ func (ts *TreatyStore) Get(id types.TreatyID) (*Treaty, bool) {
 	if !ok {
 		return nil, false
 	}
-	copy := *t
-	return &copy, true
+	cp := *t
+	cp.Terms = append([]TreatyTerm(nil), t.Terms...)
+	return &cp, true
+}
+
+// Apply performs a read-modify-write on a treaty under a single write lock.
+// This prevents race conditions from concurrent Get/mutate/Put sequences.
+func (ts *TreatyStore) Apply(id types.TreatyID, fn func(*Treaty) error) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	t, ok := ts.treaties[id.Value()]
+	if !ok {
+		return fmt.Errorf("treaty not found: %s", id.Value())
+	}
+
+	return fn(t)
 }
 
 // BySystem returns all treaties involving a given system URI.
@@ -356,8 +421,9 @@ func (ts *TreatyStore) BySystem(uri types.SystemURI) []*Treaty {
 	var result []*Treaty
 	for _, t := range ts.treaties {
 		if t.SystemA.Value() == uri.Value() || t.SystemB.Value() == uri.Value() {
-			copy := *t
-			result = append(result, &copy)
+			cp := *t
+			cp.Terms = append([]TreatyTerm(nil), t.Terms...)
+			result = append(result, &cp)
 		}
 	}
 	return result
@@ -370,9 +436,10 @@ func (ts *TreatyStore) Active() []*Treaty {
 
 	var result []*Treaty
 	for _, t := range ts.treaties {
-		if t.Status == "Active" {
-			copy := *t
-			result = append(result, &copy)
+		if t.Status == event.TreatyStatusActive {
+			cp := *t
+			cp.Terms = append([]TreatyTerm(nil), t.Terms...)
+			result = append(result, &cp)
 		}
 	}
 	return result
@@ -380,11 +447,16 @@ func (ts *TreatyStore) Active() []*Treaty {
 
 // --- Envelope Dedup ---
 
+// dedupPruneInterval controls how often Check auto-prunes expired entries.
+const dedupPruneInterval = 1000
+
 // EnvelopeDedup provides replay protection by tracking seen envelope IDs.
+// Auto-prunes expired entries every dedupPruneInterval Check calls.
 type EnvelopeDedup struct {
-	mu   sync.Mutex
-	seen map[string]time.Time
-	ttl  time.Duration
+	mu       sync.Mutex
+	seen     map[string]time.Time
+	ttl      time.Duration
+	checkCnt atomic.Int64
 }
 
 // NewEnvelopeDedup creates a dedup tracker with a 24-hour TTL.
@@ -405,6 +477,7 @@ func NewEnvelopeDedupWithTTL(ttl time.Duration) *EnvelopeDedup {
 
 // Check returns true if the envelope ID has not been seen before.
 // Records the ID and returns false on subsequent calls.
+// Periodically prunes expired entries to prevent unbounded growth.
 func (d *EnvelopeDedup) Check(id types.EnvelopeID) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -415,6 +488,12 @@ func (d *EnvelopeDedup) Check(id types.EnvelopeID) bool {
 	}
 
 	d.seen[key] = time.Now()
+
+	// Auto-prune on schedule.
+	if d.checkCnt.Add(1)%dedupPruneInterval == 0 {
+		d.pruneLocked()
+	}
+
 	return true
 }
 
@@ -422,7 +501,10 @@ func (d *EnvelopeDedup) Check(id types.EnvelopeID) bool {
 func (d *EnvelopeDedup) Prune() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.pruneLocked()
+}
 
+func (d *EnvelopeDedup) pruneLocked() int {
 	cutoff := time.Now().Add(-d.ttl)
 	removed := 0
 	for key, ts := range d.seen {
@@ -442,11 +524,13 @@ func (d *EnvelopeDedup) Size() int {
 }
 
 // generateUUID4 creates a random UUID v4 string.
-func generateUUID4() string {
+func generateUUID4() (string, error) {
 	var b [16]byte
-	_, _ = rand.Read(b[:])
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("read random bytes: %w", err)
+	}
 	b[6] = (b[6] & 0x0f) | 0x40 // version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

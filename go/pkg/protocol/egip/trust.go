@@ -26,13 +26,14 @@ const (
 
 // PeerRecord tracks the state of a known remote system.
 type PeerRecord struct {
-	SystemURI    types.SystemURI
-	PublicKey    types.PublicKey
-	Trust        types.Score
-	Capabilities []string
+	SystemURI         types.SystemURI
+	PublicKey         types.PublicKey
+	Trust             types.Score
+	Capabilities      []string
 	NegotiatedVersion int
-	LastSeen     time.Time
-	FirstSeen    time.Time
+	LastSeen          time.Time
+	FirstSeen         time.Time
+	LastDecayedAt     time.Time
 }
 
 // PeerStore manages known peer systems and their trust scores.
@@ -67,11 +68,12 @@ func (ps *PeerStore) Register(uri types.SystemURI, publicKey types.PublicKey, ca
 	record := &PeerRecord{
 		SystemURI:         uri,
 		PublicKey:         publicKey,
-		Trust:            types.MustScore(0.0),
-		Capabilities:     capabilities,
+		Trust:             types.MustScore(0.0),
+		Capabilities:      capabilities,
 		NegotiatedVersion: negotiatedVersion,
-		LastSeen:          now,
-		FirstSeen:         now,
+		LastSeen:           now,
+		FirstSeen:          now,
+		LastDecayedAt:      now,
 	}
 	ps.peers[key] = record
 	return record
@@ -123,6 +125,8 @@ func (ps *PeerStore) UpdateTrust(uri types.SystemURI, delta float64) (types.Scor
 }
 
 // DecayAll applies time-based trust decay to all peers.
+// Decay is computed from LastDecayedAt (not LastSeen) to avoid conflating
+// "last time we decayed" with "last time the peer was actually active."
 func (ps *PeerStore) DecayAll() {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -131,7 +135,7 @@ func (ps *PeerStore) DecayAll() {
 	decayPerDay := InterSystemDecayRate.Value()
 
 	for _, record := range ps.peers {
-		daysSince := now.Sub(record.LastSeen).Hours() / 24.0
+		daysSince := now.Sub(record.LastDecayedAt).Hours() / 24.0
 		if daysSince <= 0 {
 			continue
 		}
@@ -141,7 +145,7 @@ func (ps *PeerStore) DecayAll() {
 			newVal = 0.0
 		}
 		record.Trust = types.MustScore(newVal)
-		record.LastSeen = now
+		record.LastDecayedAt = now
 	}
 }
 
