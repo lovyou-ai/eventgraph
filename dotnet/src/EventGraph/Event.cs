@@ -54,14 +54,19 @@ public sealed class Event
 
 public static class CanonicalForm
 {
-    /// <summary>Produce canonical JSON: sorted keys, no whitespace.</summary>
+    /// <summary>Produce canonical JSON: sorted keys, no whitespace, omit null values.</summary>
     public static string CanonicalContentJson(Dictionary<string, object?> content)
     {
-        var sorted = new SortedDictionary<string, object?>(content);
-        return JsonSerializer.Serialize(sorted, new JsonSerializerOptions
+        var filtered = new SortedDictionary<string, object?>();
+        foreach (var kv in content)
+        {
+            if (kv.Value is not null)
+                filtered[kv.Key] = kv.Value;
+        }
+        return JsonSerializer.Serialize(filtered, new JsonSerializerOptions
         {
             WriteIndented = false,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
         });
     }
 

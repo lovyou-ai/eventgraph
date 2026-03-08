@@ -1,6 +1,6 @@
 # EventGraph
 
-> **Status: Phases 1-4 complete + integration tests + 13 composition grammars.** The Go reference implementation is fully built — event graph core, all 201 primitives across 14 layers, decision trees, trust model, authority chains, tick engine, social grammar, 13 end-to-end integration scenarios, 13 per-layer composition grammars (~145 operations + ~25 named functions), and both in-memory and PostgreSQL stores pass all tests. EGIP inter-system protocol is next. See `ROADMAP.md` for what's next.
+> **Status: All phases complete.** Go reference implementation with 201 primitives, EGIP protocol, 13 integration scenarios, 13 composition grammars. Language packages for Python, .NET, TypeScript, and Rust — all conformance-tested against Go reference hashes. CI/CD and publishing to npm, PyPI, NuGet, and crates.io.
 
 A hash-chained, append-only, causal event graph. The foundation for building systems where every action is signed, auditable, and causally linked.
 
@@ -130,9 +130,9 @@ All packages pass tests with the Go race detector. Both store implementations pa
 | 2 | Layer 0 Primitives (45 foundation primitives in 11 groups) | **Done** |
 | 3 | Communication Protocol (tick engine + bus + subscription patterns) | **Done** |
 | 4 | Layers 1-13 (156 primitives across 13 cognitive layers) | **Done** |
-| 5 | EGIP (inter-system protocol — sovereign systems communicating across graph boundaries) | Next |
-| 6 | Language Packages (Rust, Python, .NET — conformance-tested) | Planned |
-| 7 | Documentation & Examples | Planned |
+| 5 | EGIP (inter-system protocol — sovereign systems communicating across graph boundaries) | **Done** |
+| 6 | Language Packages (Rust, Python, .NET, TypeScript — conformance-tested) | **Done** |
+| 7 | Documentation, Examples & CI/CD | **Done** |
 
 See `ROADMAP.md` for the full breakdown.
 
@@ -202,14 +202,15 @@ See `CONTRIBUTING.md` for process. See `ROADMAP.md` for what needs building.
 
 Published to every ecosystem developers already work in:
 
-| Language | Package | Status | Path |
-|----------|---------|--------|------|
-| Go | `go get github.com/lovyou-ai/eventgraph/go` | Reference implementation — Phase 1 complete | `go/` |
-| Rust | `cargo add eventgraph` | Community — help wanted | `rust/` |
-| Python | `pip install eventgraph` | Community — help wanted | `python/` |
-| .NET | `dotnet add package EventGraph` | Community — help wanted | `dotnet/` |
+| Language | Package | Tests | Path |
+|----------|---------|-------|------|
+| Go | `go get github.com/lovyou-ai/eventgraph/go` | 800+ (reference) | `go/` |
+| Python | `pip install eventgraph` | 124 | `python/` |
+| .NET | `dotnet add package LovYou.EventGraph` | 87 | `dotnet/` |
+| Rust | `cargo add eventgraph` | 73 | `rust/` |
+| TypeScript | `npm install @lovyou-ai/eventgraph` | 68 | `ts/` |
 
-All implementations must pass the language-agnostic conformance test suite. Each implements the same interfaces — `Store`, `IDecisionMaker`, `IIntelligence`, `Primitive`. Same spec, native to each ecosystem.
+All implementations pass the language-agnostic conformance test suite — identical SHA-256 hashes for the same canonical form inputs. Each implements the same interfaces native to its ecosystem: types, event, store, bus, primitive, tick engine.
 
 ## License
 

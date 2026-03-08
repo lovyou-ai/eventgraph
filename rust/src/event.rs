@@ -20,7 +20,41 @@ impl Signer for NoopSigner {
 // ── Canonical form ─────────────────────────────────────────────────────
 
 pub fn canonical_content_json(content: &BTreeMap<String, Value>) -> String {
-    serde_json::to_string(content).expect("BTreeMap serializes without error")
+    // Omit null values, match Go's number formatting (1.0 → 1)
+    let filtered: BTreeMap<&String, &Value> = content
+        .iter()
+        .filter(|(_, v)| !v.is_null())
+        .collect();
+    let mut s = String::from("{");
+    let mut first = true;
+    for (k, v) in &filtered {
+        if !first { s.push(','); }
+        first = false;
+        s.push('"');
+        s.push_str(k);
+        s.push_str("\":");
+        canonical_value_to_string(v, &mut s);
+    }
+    s.push('}');
+    s
+}
+
+fn canonical_value_to_string(v: &Value, s: &mut String) {
+    match v {
+        Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                if f == (f as i64) as f64 && f.is_finite() {
+                    // Integer-valued float: output without decimal point (Go compat)
+                    s.push_str(&(f as i64).to_string());
+                } else {
+                    s.push_str(&serde_json::to_string(v).unwrap());
+                }
+            } else {
+                s.push_str(&serde_json::to_string(v).unwrap());
+            }
+        }
+        _ => s.push_str(&serde_json::to_string(v).unwrap()),
+    }
 }
 
 pub fn canonical_form(

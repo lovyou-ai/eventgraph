@@ -130,6 +130,25 @@ class TestCanonicalFormConformance:
         # Go reference hash from TestConformanceEdgeCreatedKeyOrdering
         assert h.value == "4e5c6710ca9325676663b4a66d2e82114fcd8fb49dbe5705795051e0b0be374c"
 
+    def test_integer_float_formatting(self):
+        """Go outputs 1 for 1.0, not 1.0 — all languages must match."""
+        content = {"count": 1.0, "rate": 0.5}
+        json_str = canonical_content_json(content)
+        assert json_str == '{"count":1,"rate":0.5}'
+
+    def test_null_omission(self):
+        """Null/None fields must be omitted entirely, not included as null."""
+        content = {"Actor": "actor_1", "Scope": None, "Reason": None}
+        json_str = canonical_content_json(content)
+        assert json_str == '{"Actor":"actor_1"}'
+
+    def test_number_formatting_rules(self):
+        """Verify specific number formatting from conformance vectors."""
+        cases = [(1.0, "1"), (0.5, "0.5"), (0.1, "0.1"), (100.0, "100"), (0.001, "0.001")]
+        for value, expected in cases:
+            json_str = canonical_content_json({"v": value})
+            assert json_str == '{"v":' + expected + '}', f"Failed for {value}"
+
     def test_hash_determinism(self):
         """Matches TestConformanceHashDeterminism in Go."""
         canonical = "1||test|system.bootstrapped|actor_test|conv_test|1000|{}"

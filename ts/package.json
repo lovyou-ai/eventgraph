@@ -20,7 +20,7 @@
   },
   "keywords": ["eventgraph", "event-sourcing", "hash-chain", "causal-graph"],
   "license": "BSL-1.1",
-  "author": "LovYou AI <dev@lovyou.ai>",
+  "author": "LovYou AI <matt@lovyou.ai>",
   "repository": {
     "type": "git",
     "url": "https://github.com/lovyou-ai/eventgraph.git",

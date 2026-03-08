@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "Hash-chained, append-only, causal event graph"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "BSL-1.1"}
-authors = [{name = "LovYou AI", email = "dev@lovyou.ai"}]
+license = {file = "LICENSE"}
+authors = [{name = "LovYou AI", email = "matt@lovyou.ai"}]
 keywords = ["eventgraph", "event-sourcing", "hash-chain", "causal-graph"]
 classifiers = [
     "Development Status :: 3 - Alpha",

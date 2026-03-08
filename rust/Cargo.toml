@@ -3,11 +3,11 @@ name = "eventgraph"
 version = "0.1.0"
 edition = "2024"
 description = "Hash-chained, append-only, causal event graph"
-license = "BSL-1.1"
-authors = ["LovYou AI <dev@lovyou.ai>"]
+license-file = "LICENSE"
+authors = ["LovYou AI <matt@lovyou.ai>"]
 keywords = ["eventgraph", "event-sourcing", "hash-chain", "causal-graph"]
 repository = "https://github.com/lovyou-ai/eventgraph"
-readme = "../README.md"
+readme = "README.md"
 
 [dependencies]
 sha2 = "0.10"

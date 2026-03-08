@@ -67,6 +67,15 @@ describe("createEvent", () => {
   });
 });
 
+describe("canonical formatting", () => {
+  it("integer floats format without decimal", () => {
+    expect(canonicalContentJson({ count: 1.0, rate: 0.5 })).toBe('{"count":1,"rate":0.5}');
+  });
+  it("null values are omitted", () => {
+    expect(canonicalContentJson({ Actor: "actor_1", Scope: null, Reason: undefined })).toBe('{"Actor":"actor_1"}');
+  });
+});
+
 describe("conformance", () => {
   it("bootstrap canonical and hash matches Go reference", () => {
     const content = {

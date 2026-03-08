@@ -117,6 +117,38 @@ public class EventFactoryTests
     }
 }
 
+public class NumberFormattingTests
+{
+    [Fact]
+    public void IntegerLikeFloatFormatsWithoutDecimal()
+    {
+        var content = new Dictionary<string, object?> { ["val"] = 1.0 };
+        var json = CanonicalForm.CanonicalContentJson(content);
+        // Go outputs 1, not 1.0 — we must match
+        Assert.Equal("{\"val\":1}", json);
+    }
+
+    [Fact]
+    public void FractionFormatsCorrectly()
+    {
+        var content = new Dictionary<string, object?> { ["val"] = 0.5 };
+        var json = CanonicalForm.CanonicalContentJson(content);
+        Assert.Equal("{\"val\":0.5}", json);
+    }
+
+    [Fact]
+    public void NullOmittedFromCanonicalJson()
+    {
+        var content = new Dictionary<string, object?>
+        {
+            ["Actor"] = "actor_1",
+            ["Scope"] = null,
+        };
+        var json = CanonicalForm.CanonicalContentJson(content);
+        Assert.Equal("{\"Actor\":\"actor_1\"}", json);
+    }
+}
+
 /// <summary>Cross-language conformance tests matching Go reference hashes.</summary>
 public class ConformanceTests
 {

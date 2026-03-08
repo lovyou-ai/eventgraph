@@ -159,6 +159,25 @@ fn conformance_trust_updated_hash() {
 }
 
 #[test]
+fn conformance_integer_float_formatting() {
+    // Go outputs 1 for 1.0, not 1.0 — all languages must match
+    let mut content = BTreeMap::new();
+    content.insert("count".to_string(), Value::Number(serde_json::Number::from_f64(1.0).unwrap()));
+    content.insert("rate".to_string(), Value::Number(serde_json::Number::from_f64(0.5).unwrap()));
+    let json = canonical_content_json(&content);
+    assert_eq!(json, r#"{"count":1,"rate":0.5}"#);
+}
+
+#[test]
+fn conformance_null_omission() {
+    let mut content = BTreeMap::new();
+    content.insert("Actor".to_string(), Value::String("actor_1".to_string()));
+    content.insert("Scope".to_string(), Value::Null);
+    let json = canonical_content_json(&content);
+    assert_eq!(json, r#"{"Actor":"actor_1"}"#);
+}
+
+#[test]
 fn conformance_edge_created_key_ordering_hash() {
     let mut content = BTreeMap::new();
     content.insert("Weight".to_string(), Value::Number(serde_json::Number::from_f64(0.5).unwrap()));

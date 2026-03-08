@@ -37,9 +37,31 @@ class NoopSigner:
 
 # ── Canonical form ────────────────────────────────────────────────────────
 
+class _CanonicalEncoder(json.JSONEncoder):
+    """Matches Go's encoding/json: integer floats without .0, omit None values."""
+
+    def default(self, o: Any) -> Any:
+        return super().default(o)
+
+    def encode(self, o: Any) -> str:
+        if isinstance(o, dict):
+            # Omit None values, sort keys
+            filtered = {k: v for k, v in sorted(o.items()) if v is not None}
+            return "{" + ",".join(
+                json.dumps(k) + ":" + self.encode(v) for k, v in filtered.items()
+            ) + "}"
+        if isinstance(o, float):
+            if o == int(o) and not (o != o):  # not NaN
+                return str(int(o))
+            return repr(o)
+        if isinstance(o, list):
+            return "[" + ",".join(self.encode(v) for v in o) + "]"
+        return json.dumps(o, ensure_ascii=False)
+
+
 def canonical_content_json(content: dict[str, Any]) -> str:
-    """Produce canonical JSON: sorted keys, no whitespace, no trailing zeros on numbers."""
-    return json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    """Produce canonical JSON: sorted keys, no whitespace, integer floats without .0, omit None."""
+    return _CanonicalEncoder().encode(content)
 
 
 def canonical_form(
