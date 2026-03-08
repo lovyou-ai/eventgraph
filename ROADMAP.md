@@ -315,36 +315,40 @@ Sovereign systems communicating across graph boundaries.
 
 Each language package must pass the language-agnostic conformance test suite.
 
-### Rust — DONE (92 tests)
+### Rust — DONE (103 tests)
 - [x] Core event types + hash chain
 - [x] Store trait + InMemory implementation (with query methods: by_type, by_source, by_conversation, ancestors, descendants)
 - [x] Bus
 - [x] Primitive trait + Registry
 - [x] Tick engine
+- [x] Social grammar (7 vertex operations: emit, respond, derive, extend, retract, annotate, merge)
 - [x] Conformance tests (matching Go reference hashes)
 
-### Python — DONE (142 tests)
+### Python — DONE (157 tests)
 - [x] Core event types + hash chain
 - [x] Store protocol + InMemory implementation (with query methods: by_type, by_source, by_conversation, ancestors, descendants)
 - [x] Bus
 - [x] Primitive protocol + Registry
 - [x] Tick engine
+- [x] Social grammar (7 vertex operations: emit, respond, derive, extend, retract, annotate, merge)
 - [x] Conformance tests (matching Go reference hashes)
 
-### TypeScript/npm — DONE (137 tests)
+### TypeScript/npm — DONE (150 tests)
 - [x] Core event types + hash chain
 - [x] Store interface + InMemory implementation (with query methods: byType, bySource, byConversation, ancestors, descendants)
 - [x] Bus
 - [x] Primitive interface + Registry
 - [x] Tick engine
+- [x] Social grammar (7 vertex operations: emit, respond, derive, extend, retract, annotate, merge)
 - [x] Conformance tests (matching Go reference hashes)
 
-### .NET — DONE (104 tests)
+### .NET — DONE (130 tests)
 - [x] Core event types + hash chain
 - [x] IStore interface + InMemory implementation (with query methods: ByType, BySource, ByConversation, Ancestors, Descendants)
 - [x] Bus
 - [x] IPrimitive interface + Registry
 - [x] Tick engine
+- [x] Social grammar (7 vertex operations: Emit, Respond, Derive, Extend, Retract, Annotate, Merge)
 - [x] Conformance tests (matching Go reference hashes)
 
 ---
