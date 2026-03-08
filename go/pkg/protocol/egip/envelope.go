@@ -36,8 +36,10 @@ func (e *Envelope) CanonicalForm() (string, error) {
 		return "", fmt.Errorf("marshal payload: %w", err)
 	}
 
-	// Sort keys and remove whitespace for canonical JSON.
-	var raw interface{}
+	// Round-trip to normalize nested key order (sorted) and whitespace.
+	// Uses any because payloads may contain nested maps from json.RawMessage
+	// fields whose key order is not deterministic from the source.
+	var raw any
 	if err := json.Unmarshal(payloadJSON, &raw); err != nil {
 		return "", fmt.Errorf("unmarshal payload for canonical form: %w", err)
 	}
@@ -49,13 +51,19 @@ func (e *Envelope) CanonicalForm() (string, error) {
 	msgType := strings.ToLower(string(e.Type))
 	nanos := strconv.FormatInt(e.Timestamp.UnixNano(), 10)
 
-	return fmt.Sprintf("%d|%s|%s|%s|%s|%s|%s",
+	inReplyTo := ""
+	if e.InReplyTo.IsSome() {
+		inReplyTo = e.InReplyTo.Unwrap().Value()
+	}
+
+	return fmt.Sprintf("%d|%s|%s|%s|%s|%s|%s|%s",
 		e.ProtocolVersion,
 		e.ID.Value(),
 		e.From.Value(),
 		e.To.Value(),
 		msgType,
 		nanos,
+		inReplyTo,
 		string(canonical),
 	), nil
 }
@@ -184,11 +192,10 @@ type TreatyTerm struct {
 
 // AuthorityRequestPayload is the payload for AUTHORITY_REQUEST messages.
 type AuthorityRequestPayload struct {
-	Action        string                       `json:"action"`
+	Action        types.DomainScope            `json:"action"`
 	Actor         types.ActorID                `json:"actor"`
 	Level         event.AuthorityLevel         `json:"level"`
 	Justification string                       `json:"justification"`
-	Context       map[string]any               `json:"context,omitempty"`
 	TreatyID      types.Option[types.TreatyID] `json:"treaty_id"`
 }
 

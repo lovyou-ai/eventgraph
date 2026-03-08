@@ -12,6 +12,9 @@ import (
 	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
+// CurrentProtocolVersion is the EGIP protocol version this implementation supports.
+const CurrentProtocolVersion = 1
+
 // MaxEnvelopeAge is the maximum age of an incoming envelope before it is
 // rejected as stale. This bounds the replay window even after dedup entries
 // are pruned.
@@ -55,7 +58,7 @@ func NewHandler(identity IIdentity, transport ITransport, peers *PeerStore, trea
 		peers:                 peers,
 		treaties:              treaties,
 		dedup:                 NewEnvelopeDedup(),
-		LocalProtocolVersions: []int{1},
+		LocalProtocolVersions: []int{CurrentProtocolVersion},
 		Capabilities:          []string{"treaty", "proof"},
 	}
 }
@@ -84,7 +87,7 @@ func (h *Handler) Hello(ctx context.Context, to types.SystemURI) error {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              envID,
 		From:            h.identity.SystemURI(),
 		To:              to,
@@ -337,7 +340,7 @@ func (h *Handler) handleDiscover(ctx context.Context, env *Envelope) error {
 	}
 
 	resp := &Envelope{
-		ProtocolVersion: env.ProtocolVersion,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              respID,
 		From:            h.identity.SystemURI(),
 		To:              env.From,
@@ -407,7 +410,7 @@ func (ts *TreatyStore) Apply(id types.TreatyID, fn func(*Treaty) error) error {
 
 	t, ok := ts.treaties[id.Value()]
 	if !ok {
-		return fmt.Errorf("treaty not found: %s", id.Value())
+		return &TreatyNotFoundError{TreatyID: id}
 	}
 
 	return fn(t)
@@ -463,7 +466,7 @@ type EnvelopeDedup struct {
 func NewEnvelopeDedup() *EnvelopeDedup {
 	return &EnvelopeDedup{
 		seen: make(map[string]time.Time),
-		ttl:  24 * time.Hour,
+		ttl:  MaxEnvelopeAge + time.Hour, // Must exceed MaxEnvelopeAge to prevent replay gap.
 	}
 }
 

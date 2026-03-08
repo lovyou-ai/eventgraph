@@ -71,6 +71,14 @@ func (e *DuplicateEnvelopeError) Error() string {
 }
 func (e *DuplicateEnvelopeError) egipError() {}
 
+// TreatyNotFoundError indicates the referenced treaty does not exist.
+type TreatyNotFoundError struct{ TreatyID types.TreatyID }
+
+func (e *TreatyNotFoundError) Error() string {
+	return fmt.Sprintf("treaty not found: %s", e.TreatyID.Value())
+}
+func (e *TreatyNotFoundError) egipError() {}
+
 // VersionIncompatibleError indicates no common protocol version exists.
 type VersionIncompatibleError struct {
 	Local  []int

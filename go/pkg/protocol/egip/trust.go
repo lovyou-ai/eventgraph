@@ -58,7 +58,9 @@ func (ps *PeerStore) Register(uri types.SystemURI, publicKey types.PublicKey, ca
 	now := time.Now()
 
 	if existing, ok := ps.peers[key]; ok {
-		existing.PublicKey = publicKey
+		// Do NOT overwrite PublicKey on re-registration — prevents key-substitution
+		// attacks where an attacker sends a HELLO with a new key to hijack a peer's
+		// identity. Key rotation requires out-of-band mechanisms, not a HELLO.
 		existing.Capabilities = capabilities
 		existing.NegotiatedVersion = negotiatedVersion
 		existing.LastSeen = now
@@ -91,8 +93,10 @@ func (ps *PeerStore) Get(uri types.SystemURI) (PeerRecord, bool) {
 	return *record, true
 }
 
-// UpdateTrust adjusts a peer's trust score by the given delta, clamped to [0,1]
-// and to the max single adjustment.
+// UpdateTrust adjusts a peer's trust score by the given delta, clamped to [0,1].
+// Positive deltas are capped at InterSystemMaxAdjustment to enforce gradual trust
+// accumulation. Negative deltas are applied uncapped so that security violations
+// (invalid signatures, treaty violations) have immediate, severe consequences.
 func (ps *PeerStore) UpdateTrust(uri types.SystemURI, delta float64) (types.Score, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -102,13 +106,12 @@ func (ps *PeerStore) UpdateTrust(uri types.SystemURI, delta float64) (types.Scor
 		return types.MustScore(0.0), false
 	}
 
-	// Clamp delta to max adjustment.
-	maxAdj := InterSystemMaxAdjustment.Value()
-	if delta > maxAdj {
-		delta = maxAdj
-	}
-	if delta < -maxAdj {
-		delta = -maxAdj
+	// Positive trust accumulates gradually; negative trust hits immediately.
+	if delta > 0 {
+		maxAdj := InterSystemMaxAdjustment.Value()
+		if delta > maxAdj {
+			delta = maxAdj
+		}
 	}
 
 	newVal := record.Trust.Value() + delta

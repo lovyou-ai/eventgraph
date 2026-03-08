@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -656,7 +657,7 @@ func makeTreatyEnvelope(t *testing.T, from *egipSystem, to types.SystemURI, trea
 	t.Helper()
 
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              mustEnvelopeID(t),
 		From:            from.identity.SystemURI(),
 		To:              to,
@@ -682,7 +683,7 @@ func makeMessageEnvelope(t *testing.T, from *egipSystem, to types.SystemURI, con
 	t.Helper()
 
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              mustEnvelopeID(t),
 		From:            from.identity.SystemURI(),
 		To:              to,
@@ -708,7 +709,7 @@ func makeProofEnvelope(t *testing.T, from *egipSystem, to types.SystemURI, proof
 	t.Helper()
 
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              mustEnvelopeID(t),
 		From:            from.identity.SystemURI(),
 		To:              to,
@@ -725,12 +726,12 @@ func makeProofEnvelope(t *testing.T, from *egipSystem, to types.SystemURI, proof
 	return signed
 }
 
-var envelopeCounter int
+var envelopeCounter atomic.Int64
 
 func mustEnvelopeID(t *testing.T) types.EnvelopeID {
 	t.Helper()
-	envelopeCounter++
-	id := fmt.Sprintf("00000000-0000-4000-8000-%012d", envelopeCounter)
+	n := envelopeCounter.Add(1)
+	id := fmt.Sprintf("00000000-0000-4000-8000-%012d", n)
 	return types.MustEnvelopeID(id)
 }
 

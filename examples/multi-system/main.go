@@ -244,7 +244,7 @@ func nextEnvID() types.EnvelopeID {
 func makeHello(sys *system) *egip.Envelope {
 	count, _ := sys.store.Count()
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              nextEnvID(),
 		From:            sys.identity.SystemURI(),
 		To:              sys.identity.SystemURI(), // overridden by target
@@ -252,7 +252,7 @@ func makeHello(sys *system) *egip.Envelope {
 		Payload: egip.HelloPayload{
 			SystemURI:        sys.identity.SystemURI(),
 			PublicKey:        sys.identity.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{egip.CurrentProtocolVersion},
 			Capabilities:     []string{"treaty", "proof"},
 			ChainLength:      count,
 		},
@@ -268,7 +268,7 @@ func makeHello(sys *system) *egip.Envelope {
 
 func makeTreaty(sys *system, to types.SystemURI, treatyID types.TreatyID, action event.TreatyAction, terms []egip.TreatyTerm) *egip.Envelope {
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              nextEnvID(),
 		From:            sys.identity.SystemURI(),
 		To:              to,
@@ -291,7 +291,7 @@ func makeTreaty(sys *system, to types.SystemURI, treatyID types.TreatyID, action
 
 func makeMessage(sys *system, to types.SystemURI, contentType, contentJSON string, cgers []egip.CGER) *egip.Envelope {
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              nextEnvID(),
 		From:            sys.identity.SystemURI(),
 		To:              to,
@@ -314,7 +314,7 @@ func makeMessage(sys *system, to types.SystemURI, contentType, contentJSON strin
 
 func makeProof(sys *system, to types.SystemURI, proof *egip.ProofPayload) *egip.Envelope {
 	env := &egip.Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: egip.CurrentProtocolVersion,
 		ID:              nextEnvID(),
 		From:            sys.identity.SystemURI(),
 		To:              to,

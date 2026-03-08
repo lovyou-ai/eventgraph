@@ -203,14 +203,14 @@ func TestNewIdentityFromKey(t *testing.T) {
 
 func TestEnvelopeCanonicalForm(t *testing.T) {
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"),
 		From:            types.MustSystemURI("eg://system-a"),
 		To:              types.MustSystemURI("eg://system-b"),
 		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        types.MustSystemURI("eg://system-a"),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 			Capabilities:     []string{"events"},
 			ChainLength:      10,
 		},
@@ -242,7 +242,7 @@ func TestSignAndVerifyEnvelope(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"),
 		From:            types.MustSystemURI("eg://system-a"),
 		To:              types.MustSystemURI("eg://system-b"),
@@ -250,7 +250,7 @@ func TestSignAndVerifyEnvelope(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        id.SystemURI(),
 			PublicKey:        id.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 			Capabilities:     []string{"events"},
 			ChainLength:      5,
 		},
@@ -279,14 +279,14 @@ func TestVerifyEnvelopeTampered(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000001"),
 		From:            types.MustSystemURI("eg://system-a"),
 		To:              types.MustSystemURI("eg://system-b"),
 		Type:            event.MessageTypeHello,
 		Payload: HelloPayload{
 			SystemURI:        id.SystemURI(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 			Capabilities:     []string{"events"},
 			ChainLength:      5,
 		},
@@ -539,10 +539,11 @@ func TestPeerStoreReRegister(t *testing.T) {
 	ps.Register(uri, pubKey1, []string{"events"}, 1)
 	ps.UpdateTrust(uri, 0.03)
 
-	// Re-register should update key but preserve trust.
+	// Re-register should NOT update key (prevents key-substitution attack),
+	// but should update capabilities and version, and preserve trust.
 	record := ps.Register(uri, pubKey2, []string{"events", "proofs"}, 2)
-	if record.PublicKey.String() != pubKey2.String() {
-		t.Error("re-register should update public key")
+	if record.PublicKey.String() != pubKey1.String() {
+		t.Error("re-register should preserve original public key")
 	}
 	if record.NegotiatedVersion != 2 {
 		t.Errorf("version = %d, want 2", record.NegotiatedVersion)
@@ -1125,7 +1126,7 @@ func TestHandlerHandleIncomingHello(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000100"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1133,7 +1134,7 @@ func TestHandlerHandleIncomingHello(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 			Capabilities:     []string{"events", "treaty"},
 			ChainLength:      42,
 		},
@@ -1169,7 +1170,7 @@ func TestHandlerHandleIncomingReplayRejected(t *testing.T) {
 	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000200"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1177,7 +1178,7 @@ func TestHandlerHandleIncomingReplayRejected(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 			Capabilities:     []string{"events"},
 			ChainLength:      1,
 		},
@@ -1209,7 +1210,7 @@ func TestHandlerHandleIncomingInvalidSignature(t *testing.T) {
 	otherID, _ := GenerateIdentity(types.MustSystemURI("eg://other"))
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000300"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1217,7 +1218,7 @@ func TestHandlerHandleIncomingInvalidSignature(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 			Capabilities:     nil,
 			ChainLength:      0,
 		},
@@ -1245,7 +1246,7 @@ func TestHandlerHandleIncomingVersionIncompatible(t *testing.T) {
 	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000400"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1253,7 +1254,7 @@ func TestHandlerHandleIncomingVersionIncompatible(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
-			ProtocolVersions: []int{1}, // only v1
+			ProtocolVersions: []int{CurrentProtocolVersion}, // only v1
 			Capabilities:     nil,
 			ChainLength:      0,
 		},
@@ -1289,7 +1290,7 @@ func TestHandlerHandleIncomingMessage(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000500"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1323,7 +1324,7 @@ func TestHandlerHandleIncomingReceipt(t *testing.T) {
 	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000600"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1356,7 +1357,7 @@ func TestHandlerHandleIncomingProof(t *testing.T) {
 	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000700"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1393,7 +1394,7 @@ func TestHandlerHandleIncomingTreatyPropose(t *testing.T) {
 
 	treatyID := types.MustTreatyID("00000000-0000-0000-0000-000000000030")
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000800"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1437,7 +1438,7 @@ func TestHandlerHandleIncomingTreatyAccept(t *testing.T) {
 	h.treaties.Put(treaty)
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000801"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1475,7 +1476,7 @@ func TestHandlerHandleIncomingUnknownSender(t *testing.T) {
 
 	// Don't register the peer — MESSAGE from unknown sender should fail.
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000900"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1551,7 +1552,7 @@ func TestHandlerHandleIncomingTreatySuspend(t *testing.T) {
 	h.treaties.Put(treaty)
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000810"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1589,7 +1590,7 @@ func TestHandlerHandleIncomingTreatyTerminate(t *testing.T) {
 	h.treaties.Put(treaty)
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000811"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1633,7 +1634,7 @@ func TestHandlerHandleIncomingTreatyModify(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000812"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1672,13 +1673,13 @@ func TestHandlerHandleIncomingAuthorityRequest(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000820"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
 		Type:            event.MessageTypeAuthorityRequest,
 		Payload: AuthorityRequestPayload{
-			Action:        "deploy",
+			Action:        types.MustDomainScope("deploy"),
 			Actor:         types.MustActorID("actor_00000000000000000000000000000001"),
 			Level:         event.AuthorityLevelRequired,
 			Justification: "production deploy",
@@ -1697,8 +1698,8 @@ func TestHandlerHandleIncomingAuthorityRequest(t *testing.T) {
 	if receivedPayload == nil {
 		t.Fatal("OnAuthorityRequest should have been called")
 	}
-	if receivedPayload.Action != "deploy" {
-		t.Errorf("action = %s, want deploy", receivedPayload.Action)
+	if receivedPayload.Action.Value() != "deploy" {
+		t.Errorf("action = %s, want deploy", receivedPayload.Action.Value())
 	}
 }
 
@@ -1716,7 +1717,7 @@ func TestHandlerHandleIncomingDiscover(t *testing.T) {
 	}
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000830"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1805,7 +1806,7 @@ func TestValidateProofInvalidProof(t *testing.T) {
 
 	// Send an invalid proof (zero-length chain summary).
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000840"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1837,7 +1838,7 @@ func TestHandlerHandleIncomingStaleTimestamp(t *testing.T) {
 	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000860"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1845,7 +1846,7 @@ func TestHandlerHandleIncomingStaleTimestamp(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 		},
 		Timestamp: time.Now().Add(-48 * time.Hour), // 2 days old
 		InReplyTo: types.None[types.EnvelopeID](),
@@ -1865,7 +1866,7 @@ func TestHandlerHandleIncomingFutureTimestamp(t *testing.T) {
 	remoteID, _ := GenerateIdentity(types.MustSystemURI("eg://remote"))
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000861"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
@@ -1873,7 +1874,7 @@ func TestHandlerHandleIncomingFutureTimestamp(t *testing.T) {
 		Payload: HelloPayload{
 			SystemURI:        remoteID.SystemURI(),
 			PublicKey:        remoteID.PublicKey(),
-			ProtocolVersions: []int{1},
+			ProtocolVersions: []int{CurrentProtocolVersion},
 		},
 		Timestamp: time.Now().Add(10 * time.Minute), // 10 min in future
 		InReplyTo: types.None[types.EnvelopeID](),
@@ -1969,7 +1970,7 @@ func TestHandlerHandleIncomingTreatyNotFound(t *testing.T) {
 	h.peers.Register(remoteID.SystemURI(), remoteID.PublicKey(), nil, 1)
 
 	env := &Envelope{
-		ProtocolVersion: 1,
+		ProtocolVersion: CurrentProtocolVersion,
 		ID:              types.MustEnvelopeID("00000000-0000-0000-0000-000000000850"),
 		From:            remoteID.SystemURI(),
 		To:              localID.SystemURI(),
