@@ -77,13 +77,16 @@ func (ps *PeerStore) Register(uri types.SystemURI, publicKey types.PublicKey, ca
 	return record
 }
 
-// Get returns a peer record by URI.
-func (ps *PeerStore) Get(uri types.SystemURI) (*PeerRecord, bool) {
+// Get returns a copy of the peer record by URI.
+func (ps *PeerStore) Get(uri types.SystemURI) (PeerRecord, bool) {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 
 	record, ok := ps.peers[uri.Value()]
-	return record, ok
+	if !ok {
+		return PeerRecord{}, false
+	}
+	return *record, true
 }
 
 // UpdateTrust adjusts a peer's trust score by the given delta, clamped to [0,1]
@@ -138,17 +141,18 @@ func (ps *PeerStore) DecayAll() {
 			newVal = 0.0
 		}
 		record.Trust = types.MustScore(newVal)
+		record.LastSeen = now
 	}
 }
 
-// All returns all peer records.
-func (ps *PeerStore) All() []*PeerRecord {
+// All returns copies of all peer records.
+func (ps *PeerStore) All() []PeerRecord {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 
-	result := make([]*PeerRecord, 0, len(ps.peers))
+	result := make([]PeerRecord, 0, len(ps.peers))
 	for _, r := range ps.peers {
-		result = append(result, r)
+		result = append(result, *r)
 	}
 	return result
 }

@@ -132,15 +132,15 @@ func ValidateProof(payload *ProofPayload) (bool, error) {
 }
 
 // ProofTypeFromData returns the ProofType for a given ProofData.
-func ProofTypeFromData(data ProofData) event.ProofType {
+func ProofTypeFromData(data ProofData) (event.ProofType, error) {
 	switch data.(type) {
 	case ChainSegmentProof, *ChainSegmentProof:
-		return event.ProofTypeChainSegment
+		return event.ProofTypeChainSegment, nil
 	case EventExistenceProof, *EventExistenceProof:
-		return event.ProofTypeEventExistence
+		return event.ProofTypeEventExistence, nil
 	case ChainSummaryProof, *ChainSummaryProof:
-		return event.ProofTypeChainSummary
+		return event.ProofTypeChainSummary, nil
 	default:
-		return event.ProofType("Unknown")
+		return "", fmt.Errorf("unknown proof data type: %T", data)
 	}
 }

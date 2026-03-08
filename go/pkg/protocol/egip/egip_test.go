@@ -1,6 +1,7 @@
 package egip
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -452,6 +453,13 @@ func TestPeerStoreRegisterAndGet(t *testing.T) {
 	if got.SystemURI != uri {
 		t.Errorf("Get SystemURI = %v, want %v", got.SystemURI, uri)
 	}
+
+	// Verify returned copy is independent of internal state.
+	got.NegotiatedVersion = 99
+	got2, _ := ps.Get(uri)
+	if got2.NegotiatedVersion == 99 {
+		t.Error("Get should return a copy, not a reference to internal state")
+	}
 }
 
 func TestPeerStoreGetMissing(t *testing.T) {
@@ -551,6 +559,70 @@ func TestPeerStoreAll(t *testing.T) {
 	all := ps.All()
 	if len(all) != 2 {
 		t.Errorf("All() count = %d, want 2", len(all))
+	}
+
+	// Verify returned copies are independent.
+	if len(all) > 0 {
+		all[0].NegotiatedVersion = 99
+		got, _ := ps.Get(all[0].SystemURI)
+		if got.NegotiatedVersion == 99 {
+			t.Error("All should return copies, not references to internal state")
+		}
+	}
+}
+
+func TestPeerStoreDecayAll(t *testing.T) {
+	ps := NewPeerStore()
+	uri := types.MustSystemURI("eg://remote")
+	pubKey, _ := types.NewPublicKey(make([]byte, 32))
+	ps.Register(uri, pubKey, nil, 1)
+
+	// Build up trust to 0.05 (max single adjustment).
+	ps.UpdateTrust(uri, 0.05)
+
+	// Manually set LastSeen to 2 days ago to test decay.
+	ps.mu.Lock()
+	ps.peers[uri.Value()].LastSeen = time.Now().Add(-48 * time.Hour)
+	ps.mu.Unlock()
+
+	ps.DecayAll()
+
+	got, ok := ps.Get(uri)
+	if !ok {
+		t.Fatal("expected peer to be found")
+	}
+
+	// Decay should be 0.02 * 2 = 0.04, so trust should be ~0.01.
+	expectedApprox := 0.05 - (InterSystemDecayRate.Value() * 2.0)
+	if got.Trust.Value() < expectedApprox-0.005 || got.Trust.Value() > expectedApprox+0.005 {
+		t.Errorf("trust after decay = %v, want ~%v", got.Trust.Value(), expectedApprox)
+	}
+
+	// Calling DecayAll again immediately should not compound (LastSeen was updated).
+	trustBefore := got.Trust.Value()
+	ps.DecayAll()
+	got2, _ := ps.Get(uri)
+	if got2.Trust.Value() < trustBefore-0.001 {
+		t.Errorf("DecayAll should not compound: before=%v, after=%v", trustBefore, got2.Trust.Value())
+	}
+}
+
+func TestPeerStoreDecayAllClampsToZero(t *testing.T) {
+	ps := NewPeerStore()
+	uri := types.MustSystemURI("eg://remote")
+	pubKey, _ := types.NewPublicKey(make([]byte, 32))
+	ps.Register(uri, pubKey, nil, 1)
+
+	// Trust starts at 0.0, set LastSeen to long ago.
+	ps.mu.Lock()
+	ps.peers[uri.Value()].LastSeen = time.Now().Add(-365 * 24 * time.Hour)
+	ps.mu.Unlock()
+
+	ps.DecayAll()
+
+	got, _ := ps.Get(uri)
+	if got.Trust.Value() != 0.0 {
+		t.Errorf("trust should clamp to 0.0, got %v", got.Trust.Value())
 	}
 }
 
@@ -691,20 +763,25 @@ func TestValidateProofUnknownType(t *testing.T) {
 
 func TestProofTypeFromData(t *testing.T) {
 	tests := []struct {
-		name string
-		data ProofData
-		want event.ProofType
+		name    string
+		data    ProofData
+		want    event.ProofType
+		wantErr bool
 	}{
-		{"chain segment", ChainSegmentProof{}, event.ProofTypeChainSegment},
-		{"chain segment ptr", &ChainSegmentProof{}, event.ProofTypeChainSegment},
-		{"event existence", EventExistenceProof{}, event.ProofTypeEventExistence},
-		{"event existence ptr", &EventExistenceProof{}, event.ProofTypeEventExistence},
-		{"chain summary", ChainSummaryProof{}, event.ProofTypeChainSummary},
-		{"chain summary ptr", &ChainSummaryProof{}, event.ProofTypeChainSummary},
+		{"chain segment", ChainSegmentProof{}, event.ProofTypeChainSegment, false},
+		{"chain segment ptr", &ChainSegmentProof{}, event.ProofTypeChainSegment, false},
+		{"event existence", EventExistenceProof{}, event.ProofTypeEventExistence, false},
+		{"event existence ptr", &EventExistenceProof{}, event.ProofTypeEventExistence, false},
+		{"chain summary", ChainSummaryProof{}, event.ProofTypeChainSummary, false},
+		{"chain summary ptr", &ChainSummaryProof{}, event.ProofTypeChainSummary, false},
+		{"unknown type", nil, "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ProofTypeFromData(tt.data)
+			got, err := ProofTypeFromData(tt.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ProofTypeFromData error = %v, wantErr %v", err, tt.wantErr)
+			}
 			if got != tt.want {
 				t.Errorf("ProofTypeFromData = %v, want %v", got, tt.want)
 			}
@@ -771,5 +848,47 @@ func TestErrorTypes(t *testing.T) {
 		}
 		// Verify it satisfies EGIPError (compile-time via slice type, but also runtime).
 		var _ EGIPError = e
+	}
+}
+
+// --- Concurrent access test ---
+
+func TestPeerStoreConcurrent(t *testing.T) {
+	ps := NewPeerStore()
+	pubKey, _ := types.NewPublicKey(make([]byte, 32))
+	uri := types.MustSystemURI("eg://concurrent")
+	ps.Register(uri, pubKey, []string{"events"}, 1)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			ps.UpdateTrust(uri, 0.01)
+		}()
+		go func() {
+			defer wg.Done()
+			ps.Get(uri)
+		}()
+		go func() {
+			defer wg.Done()
+			ps.All()
+		}()
+	}
+	wg.Wait()
+	// If we get here without a race detector panic, the test passes.
+}
+
+// --- Verify error branches ---
+
+func TestIdentityCreatedAt(t *testing.T) {
+	before := time.Now()
+	id, err := GenerateIdentity(types.MustSystemURI("eg://test"))
+	if err != nil {
+		t.Fatalf("GenerateIdentity: %v", err)
+	}
+	after := time.Now()
+	if id.CreatedAt().Before(before) || id.CreatedAt().After(after) {
+		t.Error("CreatedAt should be between before and after GenerateIdentity call")
 	}
 }
