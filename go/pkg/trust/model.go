@@ -3,6 +3,7 @@ package trust
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -40,8 +41,7 @@ type DefaultTrustModel struct {
 }
 
 type trustKey struct {
-	actor  string
-	domain string
+	actor string
 }
 
 // directedTrustKey is a collision-free key for directional trust (from→to).
@@ -437,7 +437,7 @@ func (m *DefaultTrustModel) Export() TrustExport {
 	}
 
 	for key, state := range m.directed {
-		dirKey := key.from + "→" + key.to
+		dirKey := encodeDirectedKey(key.from, key.to)
 		export.Directed[dirKey] = exportState(state)
 	}
 
@@ -450,22 +450,36 @@ func (m *DefaultTrustModel) ExportJSON() (json.RawMessage, error) {
 }
 
 // Import restores trust state from a snapshot. Replaces all current state.
-func (m *DefaultTrustModel) Import(export TrustExport) {
+func (m *DefaultTrustModel) Import(export TrustExport) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.scores = make(map[trustKey]*trustState, len(export.Scores))
+	scores := make(map[trustKey]*trustState, len(export.Scores))
 	for actorID, se := range export.Scores {
-		m.scores[trustKey{actor: actorID}] = importState(se)
+		state, err := importState(se)
+		if err != nil {
+			return fmt.Errorf("score for %s: %w", actorID, err)
+		}
+		scores[trustKey{actor: actorID}] = state
 	}
 
-	m.directed = make(map[directedTrustKey]*trustState, len(export.Directed))
+	directed := make(map[directedTrustKey]*trustState, len(export.Directed))
 	for dirKey, se := range export.Directed {
-		from, to := splitDirectedKey(dirKey)
-		if from != "" && to != "" {
-			m.directed[directedTrustKey{from: from, to: to}] = importState(se)
+		from, to := decodeDirectedKey(dirKey)
+		if from == "" || to == "" {
+			return fmt.Errorf("invalid directed key: %q", dirKey)
 		}
+		state, err := importState(se)
+		if err != nil {
+			return fmt.Errorf("directed %s: %w", dirKey, err)
+		}
+		directed[directedTrustKey{from: from, to: to}] = state
 	}
+
+	// Only replace state after all entries parse successfully (atomic swap).
+	m.scores = scores
+	m.directed = directed
+	return nil
 }
 
 // ImportJSON restores trust state from JSON bytes.
@@ -474,8 +488,7 @@ func (m *DefaultTrustModel) ImportJSON(data json.RawMessage) error {
 	if err := json.Unmarshal(data, &export); err != nil {
 		return err
 	}
-	m.Import(export)
-	return nil
+	return m.Import(export)
 }
 
 func exportState(state *trustState) TrustStateExport {
@@ -496,26 +509,61 @@ func exportState(state *trustState) TrustStateExport {
 	}
 }
 
-func importState(se TrustStateExport) *trustState {
+func importState(se TrustStateExport) (*trustState, error) {
+	score, err := types.NewScore(se.Score)
+	if err != nil {
+		return nil, fmt.Errorf("invalid score %v: %w", se.Score, err)
+	}
+	trend, err := types.NewWeight(se.Trend)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trend %v: %w", se.Trend, err)
+	}
+
 	byDomain := make(map[types.DomainScope]types.Score, len(se.ByDomain))
 	for d, s := range se.ByDomain {
-		byDomain[types.MustDomainScope(d)] = types.MustScore(s)
+		ds, err := types.NewDomainScope(d)
+		if err != nil {
+			return nil, fmt.Errorf("invalid domain scope %q: %w", d, err)
+		}
+		sv, err := types.NewScore(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid domain score %v for %q: %w", s, d, err)
+		}
+		byDomain[ds] = sv
 	}
 	evidence := make([]types.EventID, len(se.Evidence))
 	for i, e := range se.Evidence {
-		evidence[i] = types.MustEventID(e)
+		eid, err := types.NewEventID(e)
+		if err != nil {
+			return nil, fmt.Errorf("invalid event ID %q: %w", e, err)
+		}
+		evidence[i] = eid
 	}
 	return &trustState{
-		score:       types.MustScore(se.Score),
+		score:       score,
 		byDomain:    byDomain,
 		evidence:    evidence,
 		lastUpdated: types.NewTimestamp(time.Unix(0, se.LastUpdated)),
-		trend:       types.MustWeight(se.Trend),
-	}
+		trend:       trend,
+	}, nil
 }
 
-func splitDirectedKey(key string) (string, string) {
-	// Split on "→" (3-byte UTF-8 sequence)
+// encodeDirectedKey encodes a from→to pair as a JSON array string.
+// This is collision-free regardless of actor ID content.
+func encodeDirectedKey(from, to string) string {
+	b, _ := json.Marshal([]string{from, to})
+	return string(b)
+}
+
+// decodeDirectedKey decodes a directed trust key.
+// Supports both new JSON array format and legacy "→" separator for backwards compatibility.
+func decodeDirectedKey(key string) (string, string) {
+	// Try JSON array format first
+	var pair []string
+	if err := json.Unmarshal([]byte(key), &pair); err == nil && len(pair) == 2 {
+		return pair[0], pair[1]
+	}
+	// Legacy: split on "→" (3-byte UTF-8 sequence)
 	for i := 0; i < len(key)-2; i++ {
 		if key[i] == 0xe2 && key[i+1] == 0x86 && key[i+2] == 0x92 {
 			return key[:i], key[i+3:]

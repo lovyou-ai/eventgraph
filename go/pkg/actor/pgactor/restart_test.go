@@ -28,13 +28,17 @@ func TestRestartPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session 1 actor store: %v", err)
 	}
-	actors1.Truncate(ctx) // clean slate
+	if err := actors1.Truncate(ctx); err != nil {
+		t.Fatalf("truncate actors: %v", err)
+	}
 
 	states1, err := pgstate.NewPostgresStateStore(ctx, connStr)
 	if err != nil {
 		t.Fatalf("session 1 state store: %v", err)
 	}
-	states1.Truncate(ctx)
+	if err := states1.Truncate(ctx); err != nil {
+		t.Fatalf("truncate state: %v", err)
+	}
 
 	// Register actors.
 	pk1 := testPublicKey(10)

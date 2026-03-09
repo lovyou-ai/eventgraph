@@ -77,6 +77,15 @@ func NewPostgresStore(ctx context.Context, connString string) (*PostgresStore, e
 	return &PostgresStore{pool: pool}, nil
 }
 
+// NewPostgresStoreFromPool creates a PostgresStore from an existing connection pool.
+// It creates the schema if it doesn't exist.
+func NewPostgresStoreFromPool(ctx context.Context, pool *pgxpool.Pool) (*PostgresStore, error) {
+	if _, err := pool.Exec(ctx, schema); err != nil {
+		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("schema: %v", err)}
+	}
+	return &PostgresStore{pool: pool}, nil
+}
+
 func (s *PostgresStore) Append(ev event.Event) (event.Event, error) {
 	ctx := context.Background()
 

@@ -3,10 +3,14 @@
 // One table, all concerns. Scope separates namespaces.
 package statestore
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sync"
+)
 
 // IStateStore is the persistence interface for primitive and agent state.
 // Scope separates namespaces (e.g., "trust:actor_xxx", "agent:actor_xxx", "primitive:pattern").
+// Implementations must be safe for concurrent access.
 type IStateStore interface {
 	// Get retrieves a value by scope and key. Returns nil, nil if not found.
 	Get(scope, key string) (json.RawMessage, error)
@@ -25,7 +29,9 @@ type IStateStore interface {
 }
 
 // InMemoryStateStore implements IStateStore with in-memory storage.
+// Safe for concurrent access.
 type InMemoryStateStore struct {
+	mu   sync.RWMutex
 	data map[storeKey]json.RawMessage
 }
 
@@ -42,6 +48,9 @@ func NewInMemoryStateStore() *InMemoryStateStore {
 }
 
 func (s *InMemoryStateStore) Get(scope, key string) (json.RawMessage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	v, ok := s.data[storeKey{scope, key}]
 	if !ok {
 		return nil, nil
@@ -52,6 +61,9 @@ func (s *InMemoryStateStore) Get(scope, key string) (json.RawMessage, error) {
 }
 
 func (s *InMemoryStateStore) Put(scope, key string, value json.RawMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	cp := make(json.RawMessage, len(value))
 	copy(cp, value)
 	s.data[storeKey{scope, key}] = cp
@@ -59,11 +71,17 @@ func (s *InMemoryStateStore) Put(scope, key string, value json.RawMessage) error
 }
 
 func (s *InMemoryStateStore) Delete(scope, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	delete(s.data, storeKey{scope, key})
 	return nil
 }
 
 func (s *InMemoryStateStore) List(scope string) (map[string]json.RawMessage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	result := make(map[string]json.RawMessage)
 	for k, v := range s.data {
 		if k.scope == scope {
@@ -76,6 +94,9 @@ func (s *InMemoryStateStore) List(scope string) (map[string]json.RawMessage, err
 }
 
 func (s *InMemoryStateStore) ListScopes(prefix string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	seen := make(map[string]bool)
 	for k := range s.data {
 		if len(k.scope) >= len(prefix) && k.scope[:len(prefix)] == prefix {

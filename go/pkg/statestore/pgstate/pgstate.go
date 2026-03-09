@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -112,14 +113,26 @@ func (s *PostgresStateStore) List(scope string) (map[string]json.RawMessage, err
 		}
 		result[key] = json.RawMessage(value)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("rows: %v", err)}
+	}
 	return result, nil
+}
+
+// escapeLike escapes LIKE metacharacters (%, _) in a string to prevent
+// unintended wildcard matching when used as a prefix in a LIKE clause.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 func (s *PostgresStateStore) ListScopes(prefix string) ([]string, error) {
 	ctx := context.Background()
 	rows, err := s.pool.Query(ctx,
-		`SELECT DISTINCT scope FROM state WHERE scope LIKE $1`,
-		prefix+"%")
+		`SELECT DISTINCT scope FROM state WHERE scope LIKE $1 ESCAPE '\'`,
+		escapeLike(prefix)+"%")
 	if err != nil {
 		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("list scopes: %v", err)}
 	}
@@ -132,6 +145,9 @@ func (s *PostgresStateStore) ListScopes(prefix string) ([]string, error) {
 			return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan scope: %v", err)}
 		}
 		result = append(result, scope)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("rows: %v", err)}
 	}
 	return result, nil
 }

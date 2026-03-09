@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS actors (
 	public_key BYTEA UNIQUE NOT NULL,
 	display_name TEXT NOT NULL,
 	actor_type TEXT NOT NULL,
-	status TEXT NOT NULL DEFAULT 'Active',
+	status TEXT NOT NULL DEFAULT 'active',
 	metadata_json JSONB NOT NULL DEFAULT '{}',
 	created_at_nanos BIGINT NOT NULL,
 	seq BIGSERIAL
@@ -71,6 +72,11 @@ func (s *PostgresActorStore) Register(publicKey types.PublicKey, displayName str
 	if err == nil {
 		return existing, nil
 	}
+	// Only proceed to insert if the error is "not found". Propagate real DB errors.
+	var keyNotFound *store.ActorKeyNotFoundError
+	if !errors.As(err, &keyNotFound) {
+		return nil, err
+	}
 
 	// Derive actor ID from public key (same algorithm as InMemoryActorStore).
 	id := deriveActorID(publicKey)
@@ -100,7 +106,7 @@ func (s *PostgresActorStore) Get(id types.ActorID) (actor.IActor, error) {
 		 FROM actors WHERE id = $1`, id.Value())
 	a, err := scanActor(row)
 	if err != nil {
-		if isNotFound(err) {
+		if err == pgx.ErrNoRows {
 			return nil, &store.ActorNotFoundError{ID: id}
 		}
 		return nil, err
@@ -118,12 +124,10 @@ func (s *PostgresActorStore) getByPublicKey(ctx context.Context, publicKey types
 		 FROM actors WHERE public_key = $1`, publicKey.Bytes())
 	a, err := scanActor(row)
 	if err != nil {
-		var notFound *store.ActorNotFoundError
-		if isNotFound(err) {
+		if err == pgx.ErrNoRows {
 			keyHex := hex.EncodeToString(publicKey.Bytes())
 			return nil, &store.ActorKeyNotFoundError{KeyHex: keyHex}
 		}
-		_ = notFound
 		return nil, err
 	}
 	return a, nil
@@ -237,6 +241,9 @@ func (s *PostgresActorStore) List(filter actor.ActorFilter) (types.Page[actor.IA
 		}
 		items = append(items, a)
 	}
+	if err := rows.Err(); err != nil {
+		return types.Page[actor.IActor]{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("rows: %v", err)}
+	}
 
 	hasMore := len(items) > limit
 	if hasMore {
@@ -267,7 +274,7 @@ func (s *PostgresActorStore) Memorial(id types.ActorID, reason types.EventID) (a
 func (s *PostgresActorStore) transitionStatus(id types.ActorID, target types.ActorStatus, reason types.EventID) (actor.IActor, error) {
 	ctx := context.Background()
 
-	// Read current state to validate transition.
+	// Read current state to validate transition via the state machine.
 	current, err := s.Get(id)
 	if err != nil {
 		return nil, err
@@ -278,11 +285,17 @@ func (s *PostgresActorStore) transitionStatus(id types.ActorID, target types.Act
 		return nil, err
 	}
 
-	_, err = s.pool.Exec(ctx,
-		`UPDATE actors SET status = $1 WHERE id = $2`,
-		string(newStatus), id.Value())
+	// Atomic conditional update — prevents TOCTOU race where two concurrent
+	// transitions both read the same status and both succeed.
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE actors SET status = $1 WHERE id = $2 AND status = $3`,
+		string(newStatus), id.Value(), string(current.Status()))
 	if err != nil {
 		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("update status: %v", err)}
+	}
+	if tag.RowsAffected() == 0 {
+		// Status changed between our read and write — re-read and retry validation.
+		return nil, &store.StoreUnavailableError{Reason: "concurrent status change, retry"}
 	}
 	_ = reason // recorded on the event graph, not stored here
 
@@ -314,7 +327,7 @@ func scanActor(row pgx.Row) (actor.IActor, error) {
 	)
 	err := row.Scan(&id, &publicKey, &displayName, &actorType, &status, &metadataJSON, &createdAtNanos)
 	if err == pgx.ErrNoRows {
-		return nil, &store.ActorNotFoundError{ID: types.MustActorID("actor_unknown")}
+		return nil, pgx.ErrNoRows // let caller produce the correct typed error
 	}
 	if err != nil {
 		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan actor: %v", err)}
@@ -388,11 +401,6 @@ func parseActorStatus(s string) (types.ActorStatus, error) {
 		return "", fmt.Errorf("unknown actor status: %s", s)
 	}
 	return status, nil
-}
-
-func isNotFound(err error) bool {
-	_, ok := err.(*store.ActorNotFoundError)
-	return ok
 }
 
 // deriveActorID derives an ActorID from a public key using SHA-256.
