@@ -10,7 +10,6 @@ import (
 
 	"github.com/lovyou-ai/eventgraph/go/pkg/decision"
 	"github.com/lovyou-ai/eventgraph/go/pkg/event"
-	"github.com/lovyou-ai/eventgraph/go/pkg/types"
 )
 
 // claudeCliResult is the JSON output from `claude -p --output-format json`.
@@ -56,9 +55,8 @@ func newClaudeCliProvider(cfg Config) (*claudeCliProvider, error) {
 	}
 
 	maxBudget := 1.0 // default $1 per call
-	if cfg.Temperature > 0 {
-		// Repurpose Temperature field as max budget hint (dollars).
-		maxBudget = cfg.Temperature
+	if cfg.MaxBudgetUSD > 0 {
+		maxBudget = cfg.MaxBudgetUSD
 	}
 
 	return &claudeCliProvider{
@@ -169,19 +167,3 @@ func NewClaudeCliConfig(model string) Config {
 	}
 }
 
-// costScore derives a rough confidence from the cost — more expensive calls
-// (more tokens) suggest more thorough reasoning.
-func costScore(costUSD float64) types.Score {
-	// Cheap calls (<$0.01) → 0.6, medium ($0.01-$0.10) → 0.7, expensive (>$0.10) → 0.8
-	switch {
-	case costUSD > 0.10:
-		s, _ := types.NewScore(0.8)
-		return s
-	case costUSD > 0.01:
-		s, _ := types.NewScore(0.7)
-		return s
-	default:
-		s, _ := types.NewScore(0.6)
-		return s
-	}
-}

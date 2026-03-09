@@ -41,6 +41,10 @@ type Config struct {
 	// Temperature controls randomness. Zero means provider default.
 	Temperature float64
 
+	// MaxBudgetUSD caps the cost per Claude CLI call in dollars.
+	// Only used by the claude-cli provider. Defaults to $1.00 if zero.
+	MaxBudgetUSD float64
+
 	// SystemPrompt is prepended to every Reason call.
 	SystemPrompt string
 
