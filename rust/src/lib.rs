@@ -14,6 +14,7 @@ pub mod authority;
 pub mod graph;
 pub mod egip;
 pub mod primitives;
+pub mod agent;
 #[cfg(feature = "sqlite")]
 pub mod sqlite_store;
 #[cfg(feature = "postgres")]

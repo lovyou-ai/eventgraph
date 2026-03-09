@@ -737,5 +737,9 @@ func DefaultRegistry() *EventTypeRegistry {
 	} {
 		r.Register(et, nil)
 	}
+	// Agent event types
+	for _, et := range AllAgentEventTypes() {
+		r.Register(et, nil)
+	}
 	return r
 }
