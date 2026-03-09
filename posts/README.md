@@ -45,6 +45,9 @@ Posts from [mattsearles2.substack.com](https://mattsearles2.substack.com).
 | 36 | One Grammar, Thirteen Languages | [post36](post36-one-grammar-thirteen-languages.md) |
 | 37 | Fifteen Operations Walk Into a Courtroom | [post37](post37-fifteen-operations-walk-into-a-courtroom.md) |
 | 38 | The Grammar That Knows How to Die | [post38](post38-the-grammar-that-knows-how-to-die.md) |
+| 39 | Ship It | [post39](post39-ship-it.md) |
+| 40 | Twenty-Eight Primitives | [post40](post40-twenty-eight-primitives.md) |
+| 41 | The Hive | [post41](post41-the-hive.md) |
 
 Posts 25 and 30 were not available from the Substack API — they may be drafts or deleted.
 
