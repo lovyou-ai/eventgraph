@@ -43,6 +43,11 @@ type Config struct {
 
 	// SystemPrompt is prepended to every Reason call.
 	SystemPrompt string
+
+	// MCPConfigPath is an optional path to an MCP server config JSON file.
+	// If set, the claude-cli provider passes --mcp-config to give the agent
+	// access to MCP tools during reasoning. Ignored by other providers.
+	MCPConfigPath string
 }
 
 // New creates a Provider from the given Config.

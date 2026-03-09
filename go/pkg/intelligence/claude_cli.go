@@ -31,10 +31,11 @@ type claudeCliResult struct {
 // This uses whatever authentication Claude Code already has (OAuth, API key, etc.)
 // without requiring separate credentials.
 type claudeCliProvider struct {
-	model        string
-	maxBudget    float64
-	systemPrompt string
-	claudePath   string // path to claude binary, default "claude"
+	model         string
+	maxBudget     float64
+	systemPrompt  string
+	claudePath    string // path to claude binary, default "claude"
+	mcpConfigPath string // optional MCP server config file
 }
 
 func newClaudeCliProvider(cfg Config) (*claudeCliProvider, error) {
@@ -61,10 +62,11 @@ func newClaudeCliProvider(cfg Config) (*claudeCliProvider, error) {
 	}
 
 	return &claudeCliProvider{
-		model:        model,
-		maxBudget:    maxBudget,
-		systemPrompt: cfg.SystemPrompt,
-		claudePath:   claudePath,
+		model:         model,
+		maxBudget:     maxBudget,
+		systemPrompt:  cfg.SystemPrompt,
+		claudePath:    claudePath,
+		mcpConfigPath: cfg.MCPConfigPath,
 	}, nil
 }
 
@@ -91,6 +93,9 @@ func (p *claudeCliProvider) Reason(ctx context.Context, prompt string, history [
 	}
 	if p.systemPrompt != "" {
 		args = append(args, "--system-prompt", p.systemPrompt)
+	}
+	if p.mcpConfigPath != "" {
+		args = append(args, "--mcp-config", p.mcpConfigPath)
 	}
 
 	cmd := exec.CommandContext(ctx, p.claudePath, args...)
