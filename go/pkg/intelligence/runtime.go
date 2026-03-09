@@ -71,14 +71,28 @@ func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*AgentRuntime, error) {
 	registry := event.DefaultRegistry()
 	factory := event.NewEventFactory(registry)
 
-	// Bootstrap the event graph.
-	bsFactory := event.NewBootstrapFactory(registry)
-	bootstrap, err := bsFactory.Init(cfg.AgentID, signer)
+	// Bootstrap the event graph — only if the store is empty.
+	// When agents share a store, only the first agent creates the genesis event.
+	// Subsequent agents join the existing graph and chain off its head.
+	var bootstrapID types.EventID
+	head, err := s.Head()
 	if err != nil {
-		return nil, fmt.Errorf("bootstrap: %w", err)
+		return nil, fmt.Errorf("check store head: %w", err)
 	}
-	if _, err := s.Append(bootstrap); err != nil {
-		return nil, fmt.Errorf("append bootstrap: %w", err)
+	if head.IsSome() {
+		// Store already has events — use the current head as our starting point.
+		bootstrapID = head.Unwrap().ID()
+	} else {
+		// Empty store — create the genesis event.
+		bsFactory := event.NewBootstrapFactory(registry)
+		bootstrap, err := bsFactory.Init(cfg.AgentID, signer)
+		if err != nil {
+			return nil, fmt.Errorf("bootstrap: %w", err)
+		}
+		if _, err := s.Append(bootstrap); err != nil {
+			return nil, fmt.Errorf("append bootstrap: %w", err)
+		}
+		bootstrapID = bootstrap.ID()
 	}
 
 	return &AgentRuntime{
@@ -88,7 +102,7 @@ func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*AgentRuntime, error) {
 		factory:     factory,
 		signer:      signer,
 		convID:      convID,
-		bootstrapID: bootstrap.ID(),
+		bootstrapID: bootstrapID,
 	}, nil
 }
 
