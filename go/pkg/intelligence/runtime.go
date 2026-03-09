@@ -105,8 +105,9 @@ func (r *AgentRuntime) Provider() Provider { return r.provider }
 // Event emission
 // ════════════════════════════════════════════════════════════════════════
 
-// emit creates and appends an event to the graph, using the most recent event as cause.
-func (r *AgentRuntime) emit(content event.EventContent) (event.Event, error) {
+// Emit creates and appends an event to the graph, using the most recent event as cause.
+// Use this to record any EventContent (including Code Graph events) on the agent's graph.
+func (r *AgentRuntime) Emit(content event.EventContent) (event.Event, error) {
 	cause, err := r.lastEventID()
 	if err != nil {
 		return event.Event{}, err
@@ -175,7 +176,7 @@ func (r *AgentRuntime) Boot(agentType string, modelID string, costTier string, v
 	contents := agent.BootEvents(r.id, agentType, modelID, costTier, values, scope, grantor)
 	var events []event.Event
 	for _, c := range contents {
-		ev, err := r.emit(c)
+		ev, err := r.Emit(c)
 		if err != nil {
 			return events, err
 		}
@@ -186,7 +187,7 @@ func (r *AgentRuntime) Boot(agentType string, modelID string, costTier string, v
 
 // Observe records that the agent observed something. Returns the event.
 func (r *AgentRuntime) Observe(ctx context.Context, eventCount int) (event.Event, error) {
-	return r.emit(event.AgentObservedContent{
+	return r.Emit(event.AgentObservedContent{
 		AgentID:    r.id,
 		EventCount: eventCount,
 	})
@@ -201,7 +202,7 @@ func (r *AgentRuntime) Evaluate(ctx context.Context, subject string, prompt stri
 	}
 
 	confidence := resp.Confidence()
-	ev, err := r.emit(event.AgentEvaluatedContent{
+	ev, err := r.Emit(event.AgentEvaluatedContent{
 		AgentID:    r.id,
 		Subject:    subject,
 		Confidence: confidence,
@@ -218,7 +219,7 @@ func (r *AgentRuntime) Decide(ctx context.Context, action string, prompt string)
 		return event.Event{}, "", fmt.Errorf("decide reasoning: %w", err)
 	}
 
-	ev, err := r.emit(event.AgentDecidedContent{
+	ev, err := r.Emit(event.AgentDecidedContent{
 		AgentID:    r.id,
 		Action:     action,
 		Confidence: resp.Confidence(),
@@ -228,7 +229,7 @@ func (r *AgentRuntime) Decide(ctx context.Context, action string, prompt string)
 
 // Act records an action taken. Returns the event.
 func (r *AgentRuntime) Act(ctx context.Context, action string, target string) (event.Event, error) {
-	return r.emit(event.AgentActedContent{
+	return r.Emit(event.AgentActedContent{
 		AgentID: r.id,
 		Action:  action,
 		Target:  target,
@@ -237,7 +238,7 @@ func (r *AgentRuntime) Act(ctx context.Context, action string, target string) (e
 
 // Learn records a lesson learned. Returns the event.
 func (r *AgentRuntime) Learn(ctx context.Context, lesson string, source string) (event.Event, error) {
-	return r.emit(event.AgentLearnedContent{
+	return r.Emit(event.AgentLearnedContent{
 		AgentID: r.id,
 		Lesson:  lesson,
 		Source:   source,
@@ -246,7 +247,7 @@ func (r *AgentRuntime) Learn(ctx context.Context, lesson string, source string) 
 
 // Refuse records a refusal. Returns the event.
 func (r *AgentRuntime) Refuse(ctx context.Context, action string, reason string) (event.Event, error) {
-	return r.emit(event.AgentRefusedContent{
+	return r.Emit(event.AgentRefusedContent{
 		AgentID: r.id,
 		Action:  action,
 		Reason:  reason,
@@ -255,7 +256,7 @@ func (r *AgentRuntime) Refuse(ctx context.Context, action string, reason string)
 
 // Escalate records an escalation. Returns the event.
 func (r *AgentRuntime) Escalate(ctx context.Context, authority types.ActorID, reason string) (event.Event, error) {
-	return r.emit(event.AgentEscalatedContent{
+	return r.Emit(event.AgentEscalatedContent{
 		AgentID:   r.id,
 		Authority: authority,
 		Reason:    reason,
@@ -270,7 +271,7 @@ func (r *AgentRuntime) Introspect(ctx context.Context, prompt string) (event.Eve
 		return event.Event{}, "", fmt.Errorf("introspect reasoning: %w", err)
 	}
 
-	ev, err := r.emit(event.AgentIntrospectedContent{
+	ev, err := r.Emit(event.AgentIntrospectedContent{
 		AgentID:     r.id,
 		Observation: resp.Content(),
 	})
