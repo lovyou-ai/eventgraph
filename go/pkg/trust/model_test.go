@@ -305,3 +305,72 @@ func TestEvidenceHistoryTrimmed(t *testing.T) {
 		t.Errorf("evidence should be capped at 100, got %d", len(metrics.Evidence()))
 	}
 }
+
+func TestExportImportRoundTrip(t *testing.T) {
+	model := trust.NewDefaultTrustModel()
+	a := testActor(t, "Alice", 1)
+	b := testActor(t, "Bob", 2)
+
+	// Build up some trust state.
+	ev1 := testTrustEvent(a.ID(), 0.0, 0.5)
+	model.Update(context.Background(), a, ev1)
+
+	ev2 := testTrustEvent(b.ID(), 0.0, 0.3)
+	model.Update(context.Background(), b, ev2)
+
+	ev3 := testTrustEvent(b.ID(), 0.0, 0.8)
+	model.UpdateBetween(context.Background(), a, b, ev3)
+
+	// Export.
+	data, err := model.ExportJSON()
+	if err != nil {
+		t.Fatalf("ExportJSON: %v", err)
+	}
+
+	// Import into a fresh model.
+	model2 := trust.NewDefaultTrustModel()
+	if err := model2.ImportJSON(data); err != nil {
+		t.Fatalf("ImportJSON: %v", err)
+	}
+
+	// Verify Alice's score survived.
+	metrics1, _ := model.Score(context.Background(), a)
+	metrics2, _ := model2.Score(context.Background(), a)
+	if metrics1.Overall().Value() != metrics2.Overall().Value() {
+		t.Errorf("Alice score mismatch: original=%v restored=%v",
+			metrics1.Overall().Value(), metrics2.Overall().Value())
+	}
+
+	// Verify Bob's score survived.
+	metricsB1, _ := model.Score(context.Background(), b)
+	metricsB2, _ := model2.Score(context.Background(), b)
+	if metricsB1.Overall().Value() != metricsB2.Overall().Value() {
+		t.Errorf("Bob score mismatch: original=%v restored=%v",
+			metricsB1.Overall().Value(), metricsB2.Overall().Value())
+	}
+
+	// Verify directed trust (A→B) survived.
+	between1, _ := model.Between(context.Background(), a, b)
+	between2, _ := model2.Between(context.Background(), a, b)
+	if between1.Overall().Value() != between2.Overall().Value() {
+		t.Errorf("A→B trust mismatch: original=%v restored=%v",
+			between1.Overall().Value(), between2.Overall().Value())
+	}
+}
+
+func TestExportImportPreservesDomainScores(t *testing.T) {
+	model := trust.NewDefaultTrustModel()
+	a := testActor(t, "Alice", 1)
+
+	ev := testTrustEvent(a.ID(), 0.0, 0.6)
+	model.Update(context.Background(), a, ev)
+
+	data, _ := model.ExportJSON()
+	model2 := trust.NewDefaultTrustModel()
+	model2.ImportJSON(data)
+
+	metrics, _ := model2.ScoreInDomain(context.Background(), a, types.MustDomainScope("general"))
+	if metrics.Overall().Value() <= 0.0 {
+		t.Error("domain score should survive export/import")
+	}
+}

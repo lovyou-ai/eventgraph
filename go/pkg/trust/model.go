@@ -2,6 +2,7 @@ package trust
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"sync"
 	"time"
@@ -402,4 +403,123 @@ func (m *DefaultTrustModel) extractDeltaForScore(ev event.Event, currentScore fl
 	}
 	// Small positive trust boost for any observed (non-trust) event
 	return m.config.ObservedEventDelta
+}
+
+// --- Export/Import for persistence ---
+
+// TrustStateExport is a serializable snapshot of one trust relationship.
+type TrustStateExport struct {
+	Score       float64                    `json:"score"`
+	ByDomain    map[string]float64         `json:"by_domain,omitempty"`
+	Evidence    []string                   `json:"evidence,omitempty"`
+	LastUpdated int64                      `json:"last_updated_nanos"`
+	Trend       float64                    `json:"trend"`
+}
+
+// TrustExport is a serializable snapshot of the entire trust model.
+type TrustExport struct {
+	Scores   map[string]TrustStateExport `json:"scores"`            // key: "actor_id" or "actor_id:domain"
+	Directed map[string]TrustStateExport `json:"directed,omitempty"` // key: "from→to"
+}
+
+// Export returns a serializable snapshot of all trust state.
+func (m *DefaultTrustModel) Export() TrustExport {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	export := TrustExport{
+		Scores:   make(map[string]TrustStateExport, len(m.scores)),
+		Directed: make(map[string]TrustStateExport, len(m.directed)),
+	}
+
+	for key, state := range m.scores {
+		export.Scores[key.actor] = exportState(state)
+	}
+
+	for key, state := range m.directed {
+		dirKey := key.from + "→" + key.to
+		export.Directed[dirKey] = exportState(state)
+	}
+
+	return export
+}
+
+// ExportJSON returns the trust state as JSON bytes.
+func (m *DefaultTrustModel) ExportJSON() (json.RawMessage, error) {
+	return json.Marshal(m.Export())
+}
+
+// Import restores trust state from a snapshot. Replaces all current state.
+func (m *DefaultTrustModel) Import(export TrustExport) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.scores = make(map[trustKey]*trustState, len(export.Scores))
+	for actorID, se := range export.Scores {
+		m.scores[trustKey{actor: actorID}] = importState(se)
+	}
+
+	m.directed = make(map[directedTrustKey]*trustState, len(export.Directed))
+	for dirKey, se := range export.Directed {
+		from, to := splitDirectedKey(dirKey)
+		if from != "" && to != "" {
+			m.directed[directedTrustKey{from: from, to: to}] = importState(se)
+		}
+	}
+}
+
+// ImportJSON restores trust state from JSON bytes.
+func (m *DefaultTrustModel) ImportJSON(data json.RawMessage) error {
+	var export TrustExport
+	if err := json.Unmarshal(data, &export); err != nil {
+		return err
+	}
+	m.Import(export)
+	return nil
+}
+
+func exportState(state *trustState) TrustStateExport {
+	byDomain := make(map[string]float64, len(state.byDomain))
+	for d, s := range state.byDomain {
+		byDomain[d.Value()] = s.Value()
+	}
+	evidence := make([]string, len(state.evidence))
+	for i, e := range state.evidence {
+		evidence[i] = e.Value()
+	}
+	return TrustStateExport{
+		Score:       state.score.Value(),
+		ByDomain:    byDomain,
+		Evidence:    evidence,
+		LastUpdated: state.lastUpdated.UnixNano(),
+		Trend:       state.trend.Value(),
+	}
+}
+
+func importState(se TrustStateExport) *trustState {
+	byDomain := make(map[types.DomainScope]types.Score, len(se.ByDomain))
+	for d, s := range se.ByDomain {
+		byDomain[types.MustDomainScope(d)] = types.MustScore(s)
+	}
+	evidence := make([]types.EventID, len(se.Evidence))
+	for i, e := range se.Evidence {
+		evidence[i] = types.MustEventID(e)
+	}
+	return &trustState{
+		score:       types.MustScore(se.Score),
+		byDomain:    byDomain,
+		evidence:    evidence,
+		lastUpdated: types.NewTimestamp(time.Unix(0, se.LastUpdated)),
+		trend:       types.MustWeight(se.Trend),
+	}
+}
+
+func splitDirectedKey(key string) (string, string) {
+	// Split on "→" (3-byte UTF-8 sequence)
+	for i := 0; i < len(key)-2; i++ {
+		if key[i] == 0xe2 && key[i+1] == 0x86 && key[i+2] == 0x92 {
+			return key[:i], key[i+3:]
+		}
+	}
+	return "", ""
 }
