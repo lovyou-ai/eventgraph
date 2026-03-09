@@ -650,8 +650,22 @@ All languages implement the same Provider abstraction with OpenAI-compatible and
 - [x] TypeScript — `ts/src/codegraph.ts` (27 tests)
 - [x] .NET — `dotnet/src/EventGraph/CodeGraph/` (27 tests)
 
-### Translation Layer — NEEDED
-- [ ] Translation layer to target technologies (React, SwiftUI, terminal, etc.)
+### No Translation Layer
+
+The Code Graph primitives are a **declarative specification language for coding agents**, not an intermediate representation needing a compiler. A spec like:
+
+```
+View(name: TaskBoard,
+  layout: Layout(stack, direction: vertical),
+  content: Loop([todo, doing, done], each: state ->
+    List(Query(Task, filter: { state: state }),
+      template: TaskCard(task),
+      drag: Drag(on_drop: Command(transition, Task.state, to: target.state)))))
+```
+
+...is unambiguous because every atom (`View`, `Layout`, `Loop`, `List`, `Query`, `Drag`, `Command`) is a defined primitive with documented semantics. A coding agent reads this and emits React, SwiftUI, terminal UI, or anything else — choosing the right idiom for the target platform. The agent IS the translation layer.
+
+What matters is that the spec is platform-independent and complete: data model, state machines, authorization, UI composition, accessibility, and visual identity — all in one vocabulary. The same spec produces a web app, a native app, or a CLI tool.
 
 ---
 
@@ -665,5 +679,4 @@ These are product layers — built *on* the event graph, not part of the infrast
 - [ ] Product layer: Task Management (hierarchical decomposition, model-tier routing)
 - [ ] WebAssembly builds for browser-based event graphs
 - [ ] Mobile SDKs
-- [ ] Reference UI implementations
 - [ ] Hosted persistence service
