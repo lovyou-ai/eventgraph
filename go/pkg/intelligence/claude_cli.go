@@ -102,12 +102,12 @@ func (p *claudeCliProvider) Name() string  { return "claude-cli" }
 func (p *claudeCliProvider) Model() string { return p.model }
 
 func (p *claudeCliProvider) Reason(ctx context.Context, prompt string, history []event.Event) (decision.Response, error) {
-	// Apply default timeout if the parent context has no deadline.
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultReasonTimeout)
-		defer cancel()
-	}
+	// Always apply the default timeout. context.WithTimeout takes the minimum
+	// of parent deadline and child timeout, so this caps each call without
+	// overriding a tighter parent deadline.
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, defaultReasonTimeout)
+	defer cancel()
 
 	// Build the full prompt with history context.
 	var fullPrompt strings.Builder
@@ -188,12 +188,12 @@ func (p *claudeCliProvider) resultToResponse(result claudeCliResult) (decision.R
 }
 
 func (p *claudeCliProvider) Operate(ctx context.Context, task decision.OperateTask) (decision.OperateResult, error) {
-	// Apply default timeout if the parent context has no deadline.
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultOperateTimeout)
-		defer cancel()
-	}
+	// Always apply the default timeout. context.WithTimeout takes the minimum
+	// of parent deadline and child timeout, so this caps each call without
+	// overriding a tighter parent deadline.
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, defaultOperateTimeout)
+	defer cancel()
 
 	if task.WorkDir == "" {
 		return decision.OperateResult{}, fmt.Errorf("Operate requires WorkDir")
