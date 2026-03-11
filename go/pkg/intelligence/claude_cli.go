@@ -150,7 +150,7 @@ func (p *claudeCliProvider) Reason(ctx context.Context, prompt string, history [
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := runWithProgress(cmd, "  ⏳ thinking"); err != nil {
 		// Check if we got JSON output despite non-zero exit.
 		if stdout.Len() > 0 {
 			var result claudeCliResult
@@ -239,7 +239,7 @@ func (p *claudeCliProvider) Operate(ctx context.Context, task decision.OperateTa
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := runWithProgress(cmd, "  ⏳ working"); err != nil {
 		// Check if we got JSON output despite non-zero exit.
 		if stdout.Len() > 0 {
 			var result claudeCliResult
@@ -277,6 +277,32 @@ func (p *claudeCliProvider) resultToOperateResult(result claudeCliResult) decisi
 
 // Compile-time check that claudeCliProvider implements IOperator.
 var _ decision.IOperator = (*claudeCliProvider)(nil)
+
+// progressInterval is how often runWithProgress prints an elapsed-time heartbeat.
+const progressInterval = 10 * time.Second
+
+// runWithProgress runs a command and prints periodic elapsed-time updates to
+// stdout so the parent process doesn't appear frozen during long LLM calls.
+func runWithProgress(cmd *exec.Cmd, prefix string) error {
+	done := make(chan error, 1)
+	go func() { done <- cmd.Run() }()
+
+	start := time.Now()
+	ticker := time.NewTicker(progressInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case err := <-done:
+			elapsed := time.Since(start).Round(time.Second)
+			fmt.Printf("%s done (%s)\n", prefix, elapsed)
+			return err
+		case <-ticker.C:
+			elapsed := time.Since(start).Round(time.Second)
+			fmt.Printf("%s %s...\n", prefix, elapsed)
+		}
+	}
+}
 
 // removeEnv returns a copy of env with the named variable removed.
 func removeEnv(env []string, key string) []string {
