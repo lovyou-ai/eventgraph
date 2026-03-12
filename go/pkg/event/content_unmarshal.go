@@ -189,3 +189,18 @@ func IsKnownEventType(eventType string) bool {
 	_, ok := contentUnmarshalers[eventType]
 	return ok
 }
+
+// RegisterContentUnmarshaler registers a custom content unmarshaler for an event type.
+// Used by downstream packages (e.g., hive) to register their own event types
+// without modifying eventgraph's init block. Call during startup before
+// concurrent access.
+func RegisterContentUnmarshaler(eventType string, fn func([]byte) (EventContent, error)) {
+	contentUnmarshalers[eventType] = fn
+}
+
+// Unmarshal is a generic helper exposed for downstream packages that need to
+// register their own content unmarshalers using the same pattern as eventgraph's
+// internal types.
+func Unmarshal[T EventContent](data []byte) (EventContent, error) {
+	return unmarshal[T](data)
+}
