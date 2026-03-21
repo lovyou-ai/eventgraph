@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>LovYou.EventGraph.Sqlite</PackageId>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <Authors>LovYou AI</Authors>
     <Description>SQLite store for EventGraph</Description>
     <PackageTags>eventgraph;sqlite;event-sourcing</PackageTags>

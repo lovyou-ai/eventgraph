@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>LovYou.EventGraph.Postgres</PackageId>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <Authors>LovYou AI</Authors>
     <Description>PostgreSQL store for EventGraph</Description>
     <PackageTags>eventgraph;postgres;postgresql;event-sourcing</PackageTags>
