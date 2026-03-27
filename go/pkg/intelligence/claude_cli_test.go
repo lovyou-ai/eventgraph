@@ -11,7 +11,7 @@ import (
 	"github.com/lovyou-ai/eventgraph/go/pkg/intelligence"
 )
 
-// TestMain handles the fake claude subprocess mode used by TestOperateIsErrorReturnsError.
+// TestMain handles the fake claude subprocess mode used by IsError tests.
 // When GO_FAKE_CLAUDE_MODE is set, this binary acts as a fake claude CLI that emits
 // a specific JSON response and exits, without running any tests.
 func TestMain(m *testing.M) {
@@ -21,6 +21,11 @@ func TestMain(m *testing.M) {
 		// This is the scenario the IsError fix guards against.
 		fmt.Print(`{"type":"result","subtype":"error_during_execution","is_error":true,"result":"task failed: permission denied","usage":{"input_tokens":0,"output_tokens":0},"total_cost_usd":0}`)
 		os.Exit(1)
+	case "is_error_exit0":
+		// Simulate claude outputting is_error:true but exiting cleanly (exit 0).
+		// Claude can do this when it encounters a logic error without crashing.
+		fmt.Print(`{"type":"result","subtype":"error_during_execution","is_error":true,"result":"tool call rejected","usage":{"input_tokens":0,"output_tokens":0},"total_cost_usd":0}`)
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
@@ -62,6 +67,43 @@ func TestOperateIsErrorReturnsError(t *testing.T) {
 		t.Fatal("Operate should return an error when is_error:true and exit status 1, but got nil")
 	}
 	if !strings.Contains(err.Error(), "task failed") {
+		t.Errorf("error should contain the result message, got: %v", err)
+	}
+}
+
+// TestOperateIsErrorZeroExitReturnsError verifies that Operate returns an error when
+// the JSON result has is_error:true even when claude exits with code 0.
+func TestOperateIsErrorZeroExitReturnsError(t *testing.T) {
+	testBin, err := os.Executable()
+	if err != nil {
+		t.Fatalf("could not get test binary path: %v", err)
+	}
+
+	t.Setenv("GO_FAKE_CLAUDE_MODE", "is_error_exit0")
+
+	p, err := intelligence.New(intelligence.Config{
+		Provider: "claude-cli",
+		Model:    "sonnet",
+		BaseURL:  testBin,
+	})
+	if err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+
+	op, ok := p.(decision.IOperator)
+	if !ok {
+		t.Fatal("claude-cli provider does not implement IOperator")
+	}
+
+	workDir := t.TempDir()
+	_, err = op.Operate(context.Background(), decision.OperateTask{
+		WorkDir:     workDir,
+		Instruction: "do something",
+	})
+	if err == nil {
+		t.Fatal("Operate should return an error when is_error:true (even with exit 0), but got nil")
+	}
+	if !strings.Contains(err.Error(), "tool call rejected") {
 		t.Errorf("error should contain the result message, got: %v", err)
 	}
 }
