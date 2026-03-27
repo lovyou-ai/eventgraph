@@ -246,6 +246,9 @@ func (p *claudeCliProvider) Operate(ctx context.Context, task decision.OperateTa
 		if stdout.Len() > 0 {
 			var result claudeCliResult
 			if jsonErr := json.Unmarshal(stdout.Bytes(), &result); jsonErr == nil && result.Result != "" {
+				if result.IsError {
+					return decision.OperateResult{}, fmt.Errorf("claude CLI operate returned error: %s (subtype: %s)", result.Result, result.Subtype)
+				}
 				return p.resultToOperateResult(result), nil
 			}
 		}
