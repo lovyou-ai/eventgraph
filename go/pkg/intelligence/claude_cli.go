@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -163,11 +164,34 @@ func (p *claudeCliProvider) Reason(ctx context.Context, prompt string, history [
 		if stdout.Len() > 0 {
 			var result claudeCliResult
 			if jsonErr := json.Unmarshal(stdout.Bytes(), &result); jsonErr == nil && result.Result != "" {
-				// Budget exceeded but still got a result.
 				return p.resultToResponse(result)
 			}
 		}
-		return decision.Response{}, fmt.Errorf("claude CLI error: %w\nstderr: %s", err, stderr.String())
+		// Session collision — retry without session ID (cold start fallback).
+		if p.sessionID != "" && strings.Contains(stderr.String(), "already in use") {
+			log.Printf("[claude-cli] session %s in use, retrying cold", p.sessionID)
+			retryArgs := make([]string, 0, len(args))
+			for i := 0; i < len(args); i++ {
+				if args[i] == "--session-id" {
+					i++ // skip the UUID arg too
+					continue
+				}
+				retryArgs = append(retryArgs, args[i])
+			}
+			retryArgs = append(retryArgs, "--no-session-persistence")
+			cmd2 := exec.CommandContext(ctx, p.claudePath, retryArgs...)
+			cmd2.Stdin = strings.NewReader(fullPrompt.String())
+			cmd2.Env = env
+			var out2, err2 bytes.Buffer
+			cmd2.Stdout = &out2
+			cmd2.Stderr = &err2
+			if e := runWithProgress(cmd2, "  ⏳ thinking (retry)"); e != nil {
+				return decision.Response{}, fmt.Errorf("claude CLI retry error: %w\nstderr: %s", e, err2.String())
+			}
+			stdout = out2
+		} else {
+			return decision.Response{}, fmt.Errorf("claude CLI error: %w\nstderr: %s", err, stderr.String())
+		}
 	}
 
 	var result claudeCliResult
@@ -252,7 +276,6 @@ func (p *claudeCliProvider) Operate(ctx context.Context, task decision.OperateTa
 	cmd.Stderr = &stderr
 
 	if err := runWithProgress(cmd, "  ⏳ working"); err != nil {
-		// Check if we got JSON output despite non-zero exit.
 		if stdout.Len() > 0 {
 			var result claudeCliResult
 			if jsonErr := json.Unmarshal(stdout.Bytes(), &result); jsonErr == nil && result.Result != "" {
@@ -262,7 +285,32 @@ func (p *claudeCliProvider) Operate(ctx context.Context, task decision.OperateTa
 				return p.resultToOperateResult(result), nil
 			}
 		}
-		return decision.OperateResult{}, fmt.Errorf("claude CLI operate error: %w\nstderr: %s", err, stderr.String())
+		// Session collision — retry cold.
+		if p.sessionID != "" && strings.Contains(stderr.String(), "already in use") {
+			log.Printf("[claude-cli] session %s in use, retrying cold", p.sessionID)
+			retryArgs := make([]string, 0, len(args))
+			for i := 0; i < len(args); i++ {
+				if args[i] == "--session-id" {
+					i++
+					continue
+				}
+				retryArgs = append(retryArgs, args[i])
+			}
+			retryArgs = append(retryArgs, "--no-session-persistence")
+			cmd2 := exec.CommandContext(ctx, p.claudePath, retryArgs...)
+			cmd2.Dir = task.WorkDir
+			cmd2.Stdin = strings.NewReader(task.Instruction)
+			cmd2.Env = env
+			var out2, err2 bytes.Buffer
+			cmd2.Stdout = &out2
+			cmd2.Stderr = &err2
+			if e := runWithProgress(cmd2, "  ⏳ working (retry)"); e != nil {
+				return decision.OperateResult{}, fmt.Errorf("claude CLI operate retry error: %w\nstderr: %s", e, err2.String())
+			}
+			stdout = out2
+		} else {
+			return decision.OperateResult{}, fmt.Errorf("claude CLI operate error: %w\nstderr: %s", err, stderr.String())
+		}
 	}
 
 	var result claudeCliResult
