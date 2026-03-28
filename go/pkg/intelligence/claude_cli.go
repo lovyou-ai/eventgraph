@@ -52,6 +52,7 @@ type claudeCliProvider struct {
 	systemPrompt  string
 	claudePath    string // path to claude binary, default "claude"
 	mcpConfigPath string // optional MCP server config file
+	sessionID     string // if set, uses --resume for persistent sessions
 }
 
 func newClaudeCliProvider(cfg Config) (*claudeCliProvider, error) {
@@ -97,6 +98,7 @@ func newClaudeCliProvider(cfg Config) (*claudeCliProvider, error) {
 		systemPrompt:  cfg.SystemPrompt,
 		claudePath:    claudePath,
 		mcpConfigPath: mcpConfig,
+		sessionID:     cfg.SessionID,
 	}, nil
 }
 
@@ -127,7 +129,11 @@ func (p *claudeCliProvider) Reason(ctx context.Context, prompt string, history [
 		"--model", p.model,
 		"--max-budget-usd", fmt.Sprintf("%.2f", p.maxBudget),
 	}
-	args = append(args, "--no-session-persistence")
+	if p.sessionID != "" {
+		args = append(args, "--resume", p.sessionID)
+	} else {
+		args = append(args, "--no-session-persistence")
+	}
 	if p.systemPrompt != "" {
 		args = append(args, "--system-prompt", p.systemPrompt)
 	}
@@ -209,8 +215,12 @@ func (p *claudeCliProvider) Operate(ctx context.Context, task decision.OperateTa
 		"--output-format", "json",
 		"--model", p.model,
 		"--max-budget-usd", fmt.Sprintf("%.2f", p.maxBudget),
-		"--no-session-persistence",
 		"--dangerously-skip-permissions",
+	}
+	if p.sessionID != "" {
+		args = append(args, "--resume", p.sessionID)
+	} else {
+		args = append(args, "--no-session-persistence")
 	}
 
 	if len(task.AllowedTools) > 0 {

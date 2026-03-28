@@ -53,6 +53,10 @@ type Config struct {
 	// access to MCP tools during reasoning. Ignored by other providers.
 	MCPConfigPath string
 
+	// SessionID enables persistent sessions via --resume. When set, the
+	// claude-cli provider resumes the named session instead of cold-starting.
+	// Each pipeline role should have its own session ID for context continuity.
+	SessionID string
 }
 
 // New creates a Provider from the given Config.
