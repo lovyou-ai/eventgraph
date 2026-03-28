@@ -70,6 +70,8 @@ func New(cfg Config) (Provider, error) {
 		return newAnthropicProvider(cfg)
 	case "claude-cli":
 		return newClaudeCliProvider(cfg)
+	case "claude-sdk":
+		return newClaudeSDKProvider(cfg)
 	case "openai-compatible", "openai", "xai", "groq", "together", "ollama":
 		return newOpenAICompatibleProvider(cfg)
 	default:
