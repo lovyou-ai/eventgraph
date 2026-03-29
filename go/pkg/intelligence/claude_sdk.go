@@ -219,11 +219,19 @@ func (p *claudeSDKProvider) run(ctx context.Context, prompt string, args []strin
 	}
 
 	// Watchdog: if context is cancelled (timeout), force-kill the process tree
-	// after a 10-second grace period. On Windows, CommandContext's kill doesn't
-	// always propagate to Node.js child processes.
+	// after a 10-second grace period. Cancelled when the process exits normally.
+	watchdogDone := make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		time.Sleep(10 * time.Second)
+		select {
+		case <-watchdogDone:
+			return // process exited normally, no kill needed
+		case <-ctx.Done():
+		}
+		select {
+		case <-watchdogDone:
+			return // process exited during grace period
+		case <-time.After(10 * time.Second):
+		}
 		if cmd.Process != nil {
 			log.Printf("[claude-sdk] watchdog: force-killing PID %d after context timeout", cmd.Process.Pid)
 			killProcessTree(cmd.Process.Pid)
@@ -295,12 +303,16 @@ func (p *claudeSDKProvider) run(ctx context.Context, prompt string, args []strin
 	}
 
 	// Wait for process to exit.
-	if err := cmd.Wait(); err != nil {
+	// Wait for process to exit, then cancel the watchdog.
+	waitErr := cmd.Wait()
+	close(watchdogDone)
+
+	if waitErr != nil {
 		// If we got a result despite non-zero exit, use it.
 		if result.Result != "" || result.IsError {
 			// fall through to error checking below
 		} else {
-			return nil, fmt.Errorf("claude CLI error: %w", err)
+			return nil, fmt.Errorf("claude CLI error: %w", waitErr)
 		}
 	}
 
