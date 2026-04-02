@@ -781,87 +781,23 @@ func (s *PostgresStore) paginateReverse(ctx context.Context, filterClause string
 	return types.NewPage(items, cursorOpt, hasMore), nil
 }
 
-// scanEvent scans a single row into an Event. Loads causes from event_causes table.
-func scanEvent(ctx context.Context, pool *pgxpool.Pool, row pgx.Row) (event.Event, error) {
-	var (
-		id             string
-		version        int
-		eventType      string
-		timestampNanos int64
-		source         string
-		conversationID string
-		hash           string
-		prevHash       string
-		signature      []byte
-		contentJSON    []byte
-	)
-	err := row.Scan(&id, &version, &eventType, &timestampNanos, &source,
-		&conversationID, &hash, &prevHash, &signature, &contentJSON)
-	if err != nil {
-		return event.Event{}, err
-	}
-	return reconstructEvent(ctx, pool, id, version, eventType, timestampNanos, source,
-		conversationID, hash, prevHash, signature, contentJSON)
-}
-
-// scanEventFromRows scans the current row from pgx.Rows into an Event.
-func scanEventFromRows(ctx context.Context, pool *pgxpool.Pool, rows pgx.Rows) (event.Event, error) {
-	var (
-		id             string
-		version        int
-		eventType      string
-		timestampNanos int64
-		source         string
-		conversationID string
-		hash           string
-		prevHash       string
-		signature      []byte
-		contentJSON    []byte
-	)
-	err := rows.Scan(&id, &version, &eventType, &timestampNanos, &source,
-		&conversationID, &hash, &prevHash, &signature, &contentJSON)
-	if err != nil {
-		return event.Event{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan event: %v", err)}
-	}
-	return reconstructEvent(ctx, pool, id, version, eventType, timestampNanos, source,
-		conversationID, hash, prevHash, signature, contentJSON)
-}
-
-// reconstructEvent rebuilds an Event from database columns.
+// reconstructEvent rebuilds an Event from database columns and pre-loaded causes.
 func reconstructEvent(
-	ctx context.Context, pool *pgxpool.Pool,
-	id string, version int, eventType string, timestampNanos int64,
-	source, conversationID, hash, prevHash string,
-	signature, contentJSON []byte,
+	raw scannedEvent,
+	causes []types.EventID,
 ) (event.Event, error) {
-	evID := types.MustEventID(id)
-	evType := types.MustEventType(eventType)
-	ts := types.NewTimestamp(time.Unix(0, timestampNanos))
-	src := types.MustActorID(source)
-	convID := types.MustConversationID(conversationID)
-	h := types.MustHash(hash)
-	ph := types.MustHash(prevHash)
-	sig := types.MustSignature(signature)
+	evID := types.MustEventID(raw.id)
+	evType := types.MustEventType(raw.eventType)
+	ts := types.NewTimestamp(time.Unix(0, raw.timestampNanos))
+	src := types.MustActorID(raw.source)
+	convID := types.MustConversationID(raw.conversationID)
+	h := types.MustHash(raw.hash)
+	ph := types.MustHash(raw.prevHash)
+	sig := types.MustSignature(raw.signature)
 
-	content, err := unmarshalContent(eventType, contentJSON)
+	content, err := unmarshalContent(raw.eventType, raw.contentJSON)
 	if err != nil {
 		return event.Event{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("unmarshal content: %v", err)}
-	}
-
-	// Load causes from event_causes table.
-	causeRows, err := pool.Query(ctx, "SELECT cause_id FROM event_causes WHERE event_id = $1", id)
-	if err != nil {
-		return event.Event{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("load causes: %v", err)}
-	}
-	defer causeRows.Close()
-
-	var causes []types.EventID
-	for causeRows.Next() {
-		var causeID string
-		if err := causeRows.Scan(&causeID); err != nil {
-			return event.Event{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan cause: %v", err)}
-		}
-		causes = append(causes, types.MustEventID(causeID))
 	}
 
 	if evType == event.EventTypeSystemBootstrapped {
@@ -869,10 +805,37 @@ func reconstructEvent(
 		if !ok {
 			return event.Event{}, &store.StoreUnavailableError{Reason: "bootstrap content type mismatch"}
 		}
-		return event.NewBootstrapEvent(version, evID, evType, ts, src, bc, convID, h, sig), nil
+		return event.NewBootstrapEvent(raw.version, evID, evType, ts, src, bc, convID, h, sig), nil
 	}
 
-	return event.NewEvent(version, evID, evType, ts, src, content, causes, convID, h, ph, sig), nil
+	return event.NewEvent(raw.version, evID, evType, ts, src, content, causes, convID, h, ph, sig), nil
+}
+
+// scanEvent scans a single row into an Event. Loads causes via batch helper.
+func scanEvent(ctx context.Context, pool *pgxpool.Pool, row pgx.Row) (event.Event, error) {
+	raw, err := scanRawSingleEvent(row)
+	if err != nil {
+		return event.Event{}, err
+	}
+	causesMap, err := batchLoadCauses(ctx, pool, []string{raw.id})
+	if err != nil {
+		return event.Event{}, err
+	}
+	return reconstructEvent(raw, causesMap[raw.id])
+}
+
+// scanEventFromRows scans the current row from pgx.Rows into an Event.
+// Deprecated: will be removed once all call sites use two-phase pattern.
+func scanEventFromRows(ctx context.Context, pool *pgxpool.Pool, rows pgx.Rows) (event.Event, error) {
+	raw, err := scanRawEvent(rows)
+	if err != nil {
+		return event.Event{}, err
+	}
+	causesMap, err := batchLoadCauses(ctx, pool, []string{raw.id})
+	if err != nil {
+		return event.Event{}, err
+	}
+	return reconstructEvent(raw, causesMap[raw.id])
 }
 
 // unmarshalContent deserializes JSON into the correct EventContent type.
