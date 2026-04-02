@@ -64,6 +64,44 @@ type PostgresStore struct {
 	ownsPool bool // true when we created the pool, false when borrowed via FromPool
 }
 
+// scannedEvent holds raw columns scanned from a database row.
+// Used as an intermediate representation between scanning and reconstruction
+// to enable batch cause loading.
+type scannedEvent struct {
+	id             string
+	version        int
+	eventType      string
+	timestampNanos int64
+	source         string
+	conversationID string
+	hash           string
+	prevHash       string
+	signature      []byte
+	contentJSON    []byte
+}
+
+// scanRawEvent scans the current row from pgx.Rows into a scannedEvent.
+func scanRawEvent(rows pgx.Rows) (scannedEvent, error) {
+	var raw scannedEvent
+	err := rows.Scan(&raw.id, &raw.version, &raw.eventType, &raw.timestampNanos, &raw.source,
+		&raw.conversationID, &raw.hash, &raw.prevHash, &raw.signature, &raw.contentJSON)
+	if err != nil {
+		return scannedEvent{}, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan event: %v", err)}
+	}
+	return raw, nil
+}
+
+// scanRawSingleEvent scans a single pgx.Row into a scannedEvent.
+func scanRawSingleEvent(row pgx.Row) (scannedEvent, error) {
+	var raw scannedEvent
+	err := row.Scan(&raw.id, &raw.version, &raw.eventType, &raw.timestampNanos, &raw.source,
+		&raw.conversationID, &raw.hash, &raw.prevHash, &raw.signature, &raw.contentJSON)
+	if err != nil {
+		return scannedEvent{}, err
+	}
+	return raw, nil
+}
+
 // NewPostgresStore creates a PostgresStore connected to the given Postgres instance.
 // It creates the schema if it doesn't exist.
 func NewPostgresStore(ctx context.Context, connString string) (*PostgresStore, error) {
