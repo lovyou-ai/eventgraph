@@ -323,6 +323,70 @@ func RunConformanceSuite(t *testing.T, newStore func() store.Store) {
 		}
 	})
 
+	t.Run("MultiCauseRoundTrip", func(t *testing.T) {
+		s := newStore()
+		ev0 := makeBootstrap(t)
+		s.Append(ev0)
+
+		// Create two independent events that will both be causes.
+		ev1 := makeChainedEvent(t, s, []types.EventID{ev0.ID()})
+		stored1, err := s.Append(ev1)
+		if err != nil {
+			t.Fatalf("Append ev1: %v", err)
+		}
+		ev2 := makeChainedEvent(t, s, []types.EventID{stored1.ID()})
+		stored2, err := s.Append(ev2)
+		if err != nil {
+			t.Fatalf("Append ev2: %v", err)
+		}
+
+		// Create an event with two causes.
+		ev3 := makeChainedEvent(t, s, []types.EventID{stored1.ID(), stored2.ID()})
+		stored3, err := s.Append(ev3)
+		if err != nil {
+			t.Fatalf("Append ev3 (multi-cause): %v", err)
+		}
+
+		// Verify via Get.
+		got, err := s.Get(stored3.ID())
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if len(got.Causes()) != 2 {
+			t.Errorf("expected 2 causes, got %d", len(got.Causes()))
+		}
+
+		// Verify causes contain both expected IDs (order may vary).
+		causeSet := make(map[types.EventID]bool)
+		for _, c := range got.Causes() {
+			causeSet[c] = true
+		}
+		if !causeSet[stored1.ID()] {
+			t.Error("missing cause: stored1.ID()")
+		}
+		if !causeSet[stored2.ID()] {
+			t.Error("missing cause: stored2.ID()")
+		}
+
+		// Verify via ByType (batch path).
+		page, err := s.ByType(event.EventTypeTrustUpdated, 100, types.None[types.Cursor]())
+		if err != nil {
+			t.Fatalf("ByType: %v", err)
+		}
+		var found bool
+		for _, item := range page.Items() {
+			if item.ID() == stored3.ID() {
+				found = true
+				if len(item.Causes()) != 2 {
+					t.Errorf("ByType: expected 2 causes, got %d", len(item.Causes()))
+				}
+			}
+		}
+		if !found {
+			t.Error("multi-cause event not found in ByType results")
+		}
+	})
+
 	t.Run("Descendants", func(t *testing.T) {
 		s := newStore()
 		ev0 := makeBootstrap(t)
