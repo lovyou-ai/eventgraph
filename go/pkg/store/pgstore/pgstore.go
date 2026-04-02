@@ -102,6 +102,33 @@ func scanRawSingleEvent(row pgx.Row) (scannedEvent, error) {
 	return raw, nil
 }
 
+// batchLoadCauses loads causes for multiple events in a single query.
+// Returns a map from event ID string to its cause EventIDs.
+func batchLoadCauses(ctx context.Context, pool *pgxpool.Pool, eventIDs []string) (map[string][]types.EventID, error) {
+	if len(eventIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := pool.Query(ctx,
+		"SELECT event_id, cause_id FROM event_causes WHERE event_id = ANY($1)", eventIDs)
+	if err != nil {
+		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("batch load causes: %v", err)}
+	}
+	defer rows.Close()
+
+	result := make(map[string][]types.EventID)
+	for rows.Next() {
+		var eventID, causeID string
+		if err := rows.Scan(&eventID, &causeID); err != nil {
+			return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("scan cause: %v", err)}
+		}
+		result[eventID] = append(result[eventID], types.MustEventID(causeID))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, &store.StoreUnavailableError{Reason: fmt.Sprintf("batch causes rows: %v", err)}
+	}
+	return result, nil
+}
+
 // NewPostgresStore creates a PostgresStore connected to the given Postgres instance.
 // It creates the schema if it doesn't exist.
 func NewPostgresStore(ctx context.Context, connString string) (*PostgresStore, error) {
